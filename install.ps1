@@ -36,20 +36,33 @@ try {
     Write-Host "   ⏳ Aguardando conclusão da instalação..." -ForegroundColor Gray
     Start-Sleep -Seconds 5
     
-    # Passo 2: Instalar plugin luafast
+    # Passo 2: Instalar plugin luafast nos locais CORRETOS
     Write-Host ""
     Write-Host "🎮 Passo 2/2: Instalando plugin luafast..." -ForegroundColor Yellow
     
-    # Definir caminhos
-    $pluginsPath = "$env:LOCALAPPDATA\MillenniumSteam\plugins"
-    $tempZip = "$env:TEMP\luafast_plugin.zip"
-    $extractPath = "$env:TEMP\luafast_extract"
+    # CAMINHOS CORRETOS PARA STEAM
+    $steamPath = "C:\Program Files (x86)\Steam"
+    $correctPluginPath = "$steamPath\plugins"
+    $correctHidDllPath = "$steamPath\hid.dll"
+    
+    # Verificar se o Steam está instalado no local padrão
+    if (-not (Test-Path $steamPath)) {
+        Write-Host "❌ ERRO: Steam não encontrado em $steamPath" -ForegroundColor Red
+        Write-Host "💡 Instale o Steam no local padrão ou ajuste o script." -ForegroundColor Yellow
+        throw "Steam não encontrado no local padrão"
+    }
+    
+    Write-Host "   📁 Steam encontrado em: $steamPath" -ForegroundColor Green
     
     # Criar diretório de plugins se não existir
-    if (-not (Test-Path $pluginsPath)) {
-        New-Item -ItemType Directory -Path $pluginsPath -Force
-        Write-Host "📁 Diretório de plugins criado: $pluginsPath" -ForegroundColor Gray
+    if (-not (Test-Path $correctPluginPath)) {
+        New-Item -ItemType Directory -Path $correctPluginPath -Force
+        Write-Host "   📁 Diretório de plugins criado: $correctPluginPath" -ForegroundColor Gray
     }
+    
+    # Definir caminhos temporários
+    $tempZip = "$env:TEMP\luafast_plugin.zip"
+    $extractPath = "$env:TEMP\luafast_extract"
     
     # Download do plugin
     Write-Host "   📥 Baixando plugin luafast..." -ForegroundColor Gray
@@ -76,9 +89,9 @@ try {
         throw
     }
     
-    # Mover arquivos para o diretório correto - MÉTODO CORRIGIDO
+    # Mover arquivos para o diretório CORRETO do Steam
     $sourceDir = "$extractPath\luafast_millennium_plugin-main"
-    $targetDir = "$pluginsPath\luafast"
+    $targetDir = "$correctPluginPath\luafast"
     
     # Verificar se o source existe
     if (-not (Test-Path $sourceDir)) {
@@ -93,7 +106,7 @@ try {
         }
     }
     
-    # Remover instalação anterior se existir - MÉTODO MAIS SEGURO
+    # Remover instalação anterior se existir
     if (Test-Path $targetDir) {
         Write-Host "   ♻️ Removendo instalação anterior..." -ForegroundColor Gray
         try {
@@ -107,8 +120,8 @@ try {
     # Criar diretório de destino
     New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
     
-    # COPIAR ARQUIVOS INDIVIDUALMENTE - MÉTODO CORRIGIDO
-    Write-Host "   📄 Copiando arquivos..." -ForegroundColor Gray
+    # COPIAR ARQUIVOS INDIVIDUALMENTE para o local CORRETO
+    Write-Host "   📄 Copiando arquivos para $targetDir..." -ForegroundColor Gray
     $items = Get-ChildItem -Path $sourceDir -File
     $folders = Get-ChildItem -Path $sourceDir -Directory
     
@@ -134,6 +147,22 @@ try {
     }
     
     Write-Host "   ✅ Plugin luafast instalado em: $targetDir" -ForegroundColor Green
+    
+    # VERIFICAR E INSTALAR HID.DLL se necessário
+    Write-Host "   🔍 Verificando hid.dll..." -ForegroundColor Gray
+    
+    # Procurar hid.dll no repositório extraído
+    $hidDllSource = Get-ChildItem -Path $extractPath -Recurse -Filter "hid.dll" | Select-Object -First 1
+    if ($hidDllSource) {
+        try {
+            Copy-Item -Path $hidDllSource.FullName -Destination $correctHidDllPath -Force
+            Write-Host "   ✅ hid.dll instalada em: $correctHidDllPath" -ForegroundColor Green
+        } catch {
+            Write-Host "   ⚠️  Não foi possível copiar hid.dll: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "   ℹ️  hid.dll não encontrada no repositório" -ForegroundColor Gray
+    }
     
     # Verificar se os arquivos principais foram copiados
     $requiredFiles = @("plugin.json", "main.py", "index.js")
@@ -164,6 +193,10 @@ try {
     Write-Host "   2. Inicie o Steam normalmente" -ForegroundColor White
     Write-Host "   3. Acesse a página de qualquer jogo na Steam Store" -ForegroundColor White
     Write-Host "   4. Clique no botão 'Grátis - LuaFast' para adicionar jogos" -ForegroundColor White
+    Write-Host ""
+    Write-Host "📍 Arquivos instalados em:" -ForegroundColor Cyan
+    Write-Host "   • Plugin: $targetDir" -ForegroundColor White
+    Write-Host "   • hid.dll: $correctHidDllPath" -ForegroundColor White
     Write-Host ""
     Write-Host "🌐 Para suporte e novidades:" -ForegroundColor Cyan
     Write-Host "   Grupo do Telegram: https://t.me/luafaststeamgames" -ForegroundColor White
