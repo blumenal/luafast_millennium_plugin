@@ -1,171 +1,172 @@
-# uninstall.ps1 - Desinstalação DEFINITIVA do luafast e Millennium
+# uninstall.ps1 - Script de desinstalação para Millennium + luafast
+# Repositório: https://github.com/blumenal/luafast_millennium_plugin
+
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "🗑️  Desinstalação DEFINITIVA luafast + Millennium" -ForegroundColor Cyan
+Write-Host "🗑️  Desinstalador Automático luafast + Millennium" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Verificar admin
+# Verificar se é administrador
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
 if (-NOT $isAdmin) {
-    Write-Host "❌ Execute como Administrador!" -ForegroundColor Red
-    Write-Host "   Botão direito → Executar como Administrador" -ForegroundColor Yellow
-    timeout /t 5
+    Write-Host "❌ ERRO: Este script requer privilégios de administrador!" -ForegroundColor Red
+    Write-Host "💡 Por favor, execute o PowerShell como Administrador:" -ForegroundColor Yellow
+    Write-Host "   1. Clique com botão direito no PowerShell" -ForegroundColor Yellow
+    Write-Host "   2. Selecione 'Executar como Administrador'" -ForegroundColor Yellow
+    Write-Host "   3. Execute o comando novamente" -ForegroundColor Yellow
+    pause
     exit 1
 }
 
-Write-Host "✅ PowerShell como Administrador" -ForegroundColor Green
+Write-Host "✅ PowerShell executando como Administrador" -ForegroundColor Green
 
 try {
-    # Fechar TODOS os processos do Steam COMPLETAMENTE
-    Write-Host "🔴 Fechando Steam completamente..." -ForegroundColor Red
-    
-    $steamProcesses = @("steam", "steamwebhelper", "steamservice", "gameoverlayui")
-    foreach ($process in $steamProcesses) {
-        do {
-            $procs = Get-Process -Name $process -ErrorAction SilentlyContinue
-            if ($procs) {
-                Write-Host "   🛑 Terminando: $process" -ForegroundColor Yellow
-                Stop-Process -Name $process -Force -ErrorAction SilentlyContinue
-                Start-Sleep -Milliseconds 500
-            }
-        } while (Get-Process -Name $process -ErrorAction SilentlyContinue)
+    # Fechar Steam se estiver aberto
+    Write-Host ""
+    Write-Host "🔴 Fechando Steam..." -ForegroundColor Yellow
+    $steamProcess = Get-Process -Name "steam" -ErrorAction SilentlyContinue
+    if ($steamProcess) {
+        Write-Host "   ⏳ Fechando processos do Steam..." -ForegroundColor Gray
+        Stop-Process -Name "steam" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+        Write-Host "   ✅ Steam fechado" -ForegroundColor Green
+    } else {
+        Write-Host "   ℹ️ Steam não estava em execução" -ForegroundColor Gray
     }
-    
-    Write-Host "✅ Steam completamente fechado" -ForegroundColor Green
-    Start-Sleep -Seconds 2
 
-    # Detectar caminho do Steam
-    $steamPath = $null
-    
-    # 1. Tentar pelo registro
-    try {
-        $steamPath = (Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name "SteamPath" -ErrorAction Stop).SteamPath
-        Write-Host "📍 Steam encontrado no registro: $steamPath" -ForegroundColor Green
-    } catch {
-        # 2. Tentar caminhos padrão
-        $defaultPaths = @(
-            "C:\Program Files (x86)\Steam",
-            "C:\Program Files\Steam"
+    # Caminhos de instalação
+    $steamPath = "C:\Program Files (x86)\Steam"
+    $pluginPath = "$steamPath\plugins\luafast"
+    $hidDllPath = "$steamPath\hid.dll"
+
+    Write-Host ""
+    Write-Host "📁 Removendo arquivos..." -ForegroundColor Yellow
+
+    # Remover plugin luafast
+    if (Test-Path $pluginPath) {
+        Write-Host "   🗑️ Removendo plugin luafast..." -ForegroundColor Gray
+        try {
+            Remove-Item $pluginPath -Recurse -Force -ErrorAction Stop
+            Write-Host "   ✅ Plugin luafast removido: $pluginPath" -ForegroundColor Green
+        } catch {
+            Write-Host "   ⚠️ Aviso: Não foi possível remover completamente o plugin: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "   ℹ️ Plugin luafast não encontrado: $pluginPath" -ForegroundColor Gray
+    }
+
+    # Remover hid.dll (com verificação de segurança)
+    if (Test-Path $hidDllPath) {
+        Write-Host "   🗑️ Removendo hid.dll..." -ForegroundColor Gray
+        
+        # Fazer backup da hid.dll antes de remover (opcional)
+        $backupPath = "$hidDllPath.backup"
+        try {
+            Copy-Item -Path $hidDllPath -Destination $backupPath -Force -ErrorAction SilentlyContinue
+            Write-Host "   💾 Backup criado: $backupPath" -ForegroundColor Gray
+        } catch {
+            Write-Host "   ⚠️ Não foi possível criar backup da hid.dll" -ForegroundColor Yellow
+        }
+        
+        try {
+            Remove-Item $hidDllPath -Force -ErrorAction Stop
+            Write-Host "   ✅ hid.dll removida: $hidDllPath" -ForegroundColor Green
+        } catch {
+            Write-Host "   ⚠️ Aviso: Não foi possível remover hid.dll: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "   ℹ️ hid.dll não encontrada: $hidDllPath" -ForegroundColor Gray
+    }
+
+    # Verificar se a pasta de plugins está vazia e remover se estiver
+    $pluginsDir = "$steamPath\plugins"
+    if (Test-Path $pluginsDir) {
+        $remainingItems = Get-ChildItem $pluginsDir -ErrorAction SilentlyContinue
+        if ($remainingItems.Count -eq 0) {
+            Write-Host "   🗑️ Removendo diretório de plugins vazio..." -ForegroundColor Gray
+            Remove-Item $pluginsDir -Force -ErrorAction SilentlyContinue
+            Write-Host "   ✅ Diretório de plugins removido" -ForegroundColor Green
+        }
+    }
+
+    # Opção para desinstalar Millennium
+    Write-Host ""
+    Write-Host "🔍 Verificando Millennium..." -ForegroundColor Yellow
+    $choice = Read-Host "Deseja desinstalar o Millennium também? (S/N)"
+    if ($choice -eq 'S' -or $choice -eq 's') {
+        Write-Host "   🗑️ Desinstalando Millennium..." -ForegroundColor Gray
+        
+        # Tentar encontrar e executar desinstalador do Millennium
+        $millenniumPaths = @(
+            "$env:LOCALAPPDATA\Millennium",
+            "$env:PROGRAMFILES\Millennium",
+            "$env:PROGRAMFILES(X86)\Millennium"
         )
-        foreach ($path in $defaultPaths) {
+        
+        $uninstallFound = $false
+        foreach ($path in $millenniumPaths) {
             if (Test-Path $path) {
-                $steamPath = $path
-                Write-Host "📍 Steam encontrado em: $steamPath" -ForegroundColor Green
-                break
-            }
-        }
-    }
-
-    if (-not $steamPath -or -not (Test-Path $steamPath)) {
-        Write-Host "❌ Steam não encontrado!" -ForegroundColor Red
-        Write-Host "💡 Instale o Steam primeiro." -ForegroundColor Yellow
-        timeout /t 5
-        exit 1
-    }
-
-    Write-Host ""
-    Write-Host "🔧 Opções de Desinstalação:" -ForegroundColor Cyan
-    Write-Host "   1. Remover APENAS luafast" -ForegroundColor White
-    Write-Host "   2. Remover COMPLETAMENTE (luafast + Millennium)" -ForegroundColor White
-    Write-Host "   3. Cancelar" -ForegroundColor White
-    Write-Host ""
-
-    $choice = Read-Host "Selecione (1-3)"
-
-    if ($choice -eq "3") {
-        Write-Host "🚫 Cancelado" -ForegroundColor Yellow
-        timeout /t 3
-        exit 0
-    }
-
-    if ($choice -eq "1") {
-        # Apenas luafast
-        Write-Host "🎮 Removendo luafast..." -ForegroundColor Yellow
-        $luafastPath = "$steamPath\plugins\luafast"
-        if (Test-Path $luafastPath) {
-            Remove-Item $luafastPath -Recurse -Force
-            Write-Host "✅ luafast removido!" -ForegroundColor Green
-        } else {
-            Write-Host "ℹ️ luafast não encontrado." -ForegroundColor Gray
-        }
-    }
-    elseif ($choice -eq "2") {
-        # Remoção COMPLETA e DEFINITIVA
-        Write-Host "💥 REMOÇÃO COMPLETA INICIADA..." -ForegroundColor Red
-        Write-Host "   Isso resolverá o erro do millennium.dll" -ForegroundColor Yellow
-        
-        # LISTA DEFINITIVA de arquivos/pastas do Millennium
-        $millenniumItems = @(
-            # Arquivos principais
-            "$steamPath\hid.dll",
-            "$steamPath\millennium.dll",
-            "$steamPath\steamui.dll",
-            "$steamPath\steamui.dll.original",
-            "$steamPath\steamui.dll.backup",
-            
-            # Pastas
-            "$steamPath\plugins",
-            "$steamPath\ext",
-            "$steamPath\millennium",
-            
-            # AppData
-            "$env:LOCALAPPDATA\MillenniumSteam",
-            "$env:APPDATA\MillenniumSteam"
-        )
-
-        Write-Host "🔍 Removendo componentes do Millennium..." -ForegroundColor Yellow
-        
-        $removedCount = 0
-        foreach ($item in $millenniumItems) {
-            if (Test-Path $item) {
-                try {
-                    if (Test-Path $item -PathType Container) {
-                        Remove-Item $item -Recurse -Force
-                    } else {
-                        Remove-Item $item -Force
+                Write-Host "   📁 Millennium encontrado em: $path" -ForegroundColor Gray
+                
+                # Procurar por desinstalador
+                $uninstaller = Get-ChildItem $path -Filter "uninstall*.exe" -Recurse | Select-Object -First 1
+                if ($uninstaller) {
+                    Write-Host "   🚀 Executando desinstalador: $($uninstaller.FullName)" -ForegroundColor Gray
+                    try {
+                        Start-Process -FilePath $uninstaller.FullName -Wait
+                        Write-Host "   ✅ Desinstalador do Millennium executado" -ForegroundColor Green
+                        $uninstallFound = $true
+                        break
+                    } catch {
+                        Write-Host "   ❌ Erro ao executar desinstalador: $($_.Exception.Message)" -ForegroundColor Red
                     }
-                    Write-Host "   ✅ Removido: $(Split-Path $item -Leaf)" -ForegroundColor Green
-                    $removedCount++
-                } catch {
-                    Write-Host "   ❌ Erro em: $(Split-Path $item -Leaf)" -ForegroundColor Red
                 }
             }
         }
-
-        # VERIFICAÇÃO CRÍTICA: Garantir que o hid.dll foi removido
-        $hidCheck = Test-Path "$steamPath\hid.dll"
-        if ($hidCheck) {
-            Write-Host "⚠️  AVISO: hid.dll ainda presente!" -ForegroundColor Red
-            Write-Host "   Tentando método alternativo..." -ForegroundColor Yellow
-            
-            # Método alternativo para remover hid.dll
-            try {
-                cmd /c "del /F /Q `"$steamPath\hid.dll`" 2>nul"
-                Start-Sleep -Seconds 1
-            } catch {
-                Write-Host "   ❌ Não foi possível remover hid.dll" -ForegroundColor Red
-                Write-Host "   💡 Feche manualmente o Steam e delete o arquivo." -ForegroundColor Yellow
-            }
+        
+        if (-not $uninstallFound) {
+            Write-Host "   ℹ️ Desinstalador do Millennium não encontrado automaticamente" -ForegroundColor Yellow
+            Write-Host "   💡 Você pode desinstalar manualmente pelo Painel de Controle" -ForegroundColor White
         }
-
-        Write-Host ""
-        Write-Host "📊 Resumo:" -ForegroundColor Cyan
-        Write-Host "   • Itens removidos: $removedCount" -ForegroundColor White
-        Write-Host "   • Erro do millennium.dll: RESOLVIDO ✓" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "🎯 O Millennium foi COMPLETAMENTE removido!" -ForegroundColor Green
     }
 
     Write-Host ""
-    Write-Host "💡 Próximo passo:" -ForegroundColor Cyan
-    Write-Host "   Reinicie o Steam para confirmar que o erro desapareceu." -ForegroundColor White
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host "✅ Desinstalação concluída com sucesso!" -ForegroundColor Green
+    Write-Host "==================================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "🔄 Se o erro persistir, REINICIE O COMPUTADOR antes de abrir o Steam." -ForegroundColor Yellow
+    Write-Host "📝 Próximos passos:" -ForegroundColor Yellow
+    Write-Host "   1. Reinicie o Steam para aplicar as mudanças" -ForegroundColor White
+    Write-Host "   2. O plugin luafast foi completamente removido" -ForegroundColor White
+    Write-Host "   3. Se tiver problemas, verifique o backup da hid.dll em: $hidDllPath.backup" -ForegroundColor White
+    Write-Host ""
+    Write-Host "🌐 Para suporte:" -ForegroundColor Cyan
+    Write-Host "   Repositório: https://github.com/blumenal/luafast_millennium_plugin" -ForegroundColor White
+    Write-Host ""
 
+    # Opção para reiniciar o Steam
+    $restartChoice = Read-Host "Deseja iniciar o Steam agora? (S/N)"
+    if ($restartChoice -eq 'S' -or $restartChoice -eq 's') {
+        Write-Host "🚀 Iniciando Steam..." -ForegroundColor Green
+        Start-Process "steam://"
+    }
+
+    Write-Host ""
+    Write-Host "Pressione qualquer tecla para fechar..." -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    
 } catch {
-    Write-Host "❌ Erro: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "❌ ERRO na desinstalação: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "💡 Soluções possíveis:" -ForegroundColor Yellow
+    Write-Host "   • Execute o PowerShell como Administrador" -ForegroundColor White
+    Write-Host "   • Feche o Steam manualmente antes de executar" -ForegroundColor White
+    Write-Host "   • Remova os arquivos manualmente:" -ForegroundColor White
+    Write-Host "     - $pluginPath" -ForegroundColor White
+    Write-Host "     - $hidDllPath" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Pressione qualquer tecla para fechar..." -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
 }
-
-Write-Host ""
-Write-Host "Pressione qualquer tecla para fechar..." -ForegroundColor Gray
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
