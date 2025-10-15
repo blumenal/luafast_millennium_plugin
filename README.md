@@ -25,7 +25,13 @@ Millennium Steam Patcher
 Método 1: Instalação Automática (Recomendado)
 Execute o seguinte comando no PowerShell como Administrador:
 
-powershell
+## 🛠 Instalação Completa (Millennium + luafast)
+
+### Método 1: Instalação Automática (Recomendado)
+
+Execute o seguinte comando no **PowerShell como Administrador**:
+
+```powershell
 # Instala o Millennium e o plugin luafast automaticamente
 irm "https://raw.githubusercontent.com/blumenal/luafast_millennium_plugin/main/install.ps1" | iex
 
