@@ -1,0 +1,40 @@
+{
+  "auth": {
+    "title": "luafast",
+    "getApiKey": "Get your API key from:",
+    "website": "www.piracybound.com/luafast",
+    "placeholder": "Enter your luafast API key...",
+    "instructions": "Paste your luafast API key below. You can find it at https://www.piracybound.com/manilua.",
+    "example": "Example: manilua_XXXXXXXXXXXXXXXX.",
+    "required": "Please enter your API key.",
+    "save": "Save API Key",
+    "saving": "Saving...",
+    "invalid": "Invalid Key",
+    "error": "Error"
+  },
+  "btn": {
+    "add": "Add via luafast",
+    "remove": "Remove via luafast",
+    "loading": "Loading...",
+    "removing": "Removing...",
+    "cancel": "Cancel"
+  },
+  "status": {
+    "downloading": "Downloading and installing game files...",
+    "checking": "Checking availability…",
+    "checkingApi": "Checking {api}…",
+    "queued": "Initializing download…",
+    "downloadingProgress": "Downloading from {endpoint}… ({downloaded}MB / {total}MB)",
+    "processing": "Processing ZIP package…",
+    "extracting": "Extracting game files…",
+    "extractingCount": "Extracting game files… ({count} files processed)",
+    "installing": "Installing to Steam…",
+    "failed": "Download failed",
+    "gameAdded": "Game Added Successfully!",
+    "authFailed": "API key authentication failed"
+  },
+  "generic": {
+    "error": "Error",
+    "close": "Close"
+  }
+}
