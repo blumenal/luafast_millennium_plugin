@@ -32,8 +32,9 @@ try {
     
     Write-Host "✅ Millennium instalado com sucesso!" -ForegroundColor Green
     
-    # Aguardar um pouco para garantir que a instalação do Millennium foi concluída
-    Start-Sleep -Seconds 3
+    # Aguardar instalação do Millennium
+    Write-Host "   ⏳ Aguardando conclusão da instalação..." -ForegroundColor Gray
+    Start-Sleep -Seconds 5
     
     # Passo 2: Instalar plugin luafast
     Write-Host ""
@@ -53,31 +54,100 @@ try {
     # Download do plugin
     Write-Host "   📥 Baixando plugin luafast..." -ForegroundColor Gray
     $pluginUrl = "https://github.com/blumenal/luafast_millennium_plugin/archive/refs/heads/main.zip"
-    Invoke-WebRequest -Uri $pluginUrl -OutFile $tempZip
+    try {
+        Invoke-WebRequest -Uri $pluginUrl -OutFile $tempZip
+        Write-Host "   ✅ Download concluído" -ForegroundColor Green
+    } catch {
+        Write-Host "   ❌ Erro no download: $($_.Exception.Message)" -ForegroundColor Red
+        throw
+    }
     
     # Extrair arquivo
     Write-Host "   📦 Extraindo arquivos..." -ForegroundColor Gray
     if (Test-Path $extractPath) {
-        Remove-Item $extractPath -Recurse -Force
+        Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
     }
-    Expand-Archive -Path $tempZip -DestinationPath $extractPath -Force
     
-    # Mover arquivos para o diretório correto
+    try {
+        Expand-Archive -Path $tempZip -DestinationPath $extractPath -Force
+        Write-Host "   ✅ Extração concluída" -ForegroundColor Green
+    } catch {
+        Write-Host "   ❌ Erro na extração: $($_.Exception.Message)" -ForegroundColor Red
+        throw
+    }
+    
+    # Mover arquivos para o diretório correto - MÉTODO CORRIGIDO
     $sourceDir = "$extractPath\luafast_millennium_plugin-main"
     $targetDir = "$pluginsPath\luafast"
     
-    # Remover instalação anterior se existir
-    if (Test-Path $targetDir) {
-        Remove-Item $targetDir -Recurse -Force
-        Write-Host "   ♻️ Instalação anterior removida" -ForegroundColor Gray
+    # Verificar se o source existe
+    if (-not (Test-Path $sourceDir)) {
+        Write-Host "   ❌ Diretório de origem não encontrado: $sourceDir" -ForegroundColor Red
+        # Tentar encontrar qualquer diretório extraído
+        $folders = Get-ChildItem -Path $extractPath -Directory
+        if ($folders.Count -eq 1) {
+            $sourceDir = $folders[0].FullName
+            Write-Host "   🔄 Usando diretório alternativo: $sourceDir" -ForegroundColor Yellow
+        } else {
+            throw "Não foi possível encontrar o diretório de origem extraído"
+        }
     }
     
+    # Remover instalação anterior se existir - MÉTODO MAIS SEGURO
+    if (Test-Path $targetDir) {
+        Write-Host "   ♻️ Removendo instalação anterior..." -ForegroundColor Gray
+        try {
+            Remove-Item $targetDir -Recurse -Force -ErrorAction Stop
+            Write-Host "   ✅ Instalação anterior removida" -ForegroundColor Green
+        } catch {
+            Write-Host "   ⚠️  Aviso: Não foi possível remover completamente a instalação anterior" -ForegroundColor Yellow
+        }
+    }
+    
+    # Criar diretório de destino
+    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+    
+    # COPIAR ARQUIVOS INDIVIDUALMENTE - MÉTODO CORRIGIDO
+    Write-Host "   📄 Copiando arquivos..." -ForegroundColor Gray
+    $items = Get-ChildItem -Path $sourceDir -File
+    $folders = Get-ChildItem -Path $sourceDir -Directory
+    
     # Copiar arquivos
-    if (Test-Path $sourceDir) {
-        Copy-Item -Path "$sourceDir\*" -Destination $targetDir -Recurse -Force
-        Write-Host "   ✅ Plugin luafast instalado em: $targetDir" -ForegroundColor Gray
+    foreach ($item in $items) {
+        try {
+            Copy-Item -Path $item.FullName -Destination $targetDir -Force
+            Write-Host "     ✅ $($item.Name)" -ForegroundColor Gray
+        } catch {
+            Write-Host "     ❌ Erro copiando $($item.Name): $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+    
+    # Copiar pastas
+    foreach ($folder in $folders) {
+        try {
+            $destFolder = Join-Path $targetDir $folder.Name
+            Copy-Item -Path $folder.FullName -Destination $destFolder -Recurse -Force
+            Write-Host "     📁 $($folder.Name)" -ForegroundColor Gray
+        } catch {
+            Write-Host "     ❌ Erro copiando pasta $($folder.Name): $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+    
+    Write-Host "   ✅ Plugin luafast instalado em: $targetDir" -ForegroundColor Green
+    
+    # Verificar se os arquivos principais foram copiados
+    $requiredFiles = @("plugin.json", "main.py", "index.js")
+    $missingFiles = @()
+    foreach ($file in $requiredFiles) {
+        if (-not (Test-Path "$targetDir\$file")) {
+            $missingFiles += $file
+        }
+    }
+    
+    if ($missingFiles.Count -gt 0) {
+        Write-Host "   ⚠️  Aviso: Alguns arquivos podem estar faltando: $($missingFiles -join ', ')" -ForegroundColor Yellow
     } else {
-        throw "Diretório de origem não encontrado: $sourceDir"
+        Write-Host "   ✅ Todos os arquivos principais instalados" -ForegroundColor Green
     }
     
     # Limpar arquivos temporários
@@ -100,16 +170,18 @@ try {
     Write-Host "   Repositório: https://github.com/blumenal/luafast_millennium_plugin" -ForegroundColor White
     Write-Host ""
     
-    # Perguntar se deseja fechar o Steam se estiver aberto
+    # Verificar se o Steam está aberto
     $steamProcess = Get-Process -Name "steam" -ErrorAction SilentlyContinue
     if ($steamProcess) {
         Write-Host "⚠️  O Steam está atualmente em execução." -ForegroundColor Yellow
         $choice = Read-Host "Deseja fechar o Steam agora? (S/N)"
         if ($choice -eq 'S' -or $choice -eq 's') {
             Write-Host "🛑 Fechando Steam..." -ForegroundColor Yellow
-            Stop-Process -Name "steam" -Force
+            Stop-Process -Name "steam" -Force -ErrorAction SilentlyContinue
             Write-Host "✅ Steam fechado. Você pode iniciá-lo novamente agora." -ForegroundColor Green
         }
+    } else {
+        Write-Host "💡 Dica: Inicie o Steam para começar a usar o plugin!" -ForegroundColor Cyan
     }
     
     Write-Host ""
