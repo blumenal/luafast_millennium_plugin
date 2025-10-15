@@ -21,10 +21,6 @@ Steam instalado
 
 Millennium Steam Patcher
 
-🛠 Instalação Completa (Millennium + luafast)
-Método 1: Instalação Automática (Recomendado)
-Execute o seguinte comando no PowerShell como Administrador:
-
 ## 🛠 Instalação Completa (Millennium + luafast)
 
 ### Método 1: Instalação Automática (Recomendado)
@@ -34,23 +30,6 @@ Execute o seguinte comando no **PowerShell como Administrador**:
 ```powershell
 # Instala o Millennium e o plugin luafast automaticamente
 irm "https://raw.githubusercontent.com/blumenal/luafast_millennium_plugin/main/install.ps1" | iex
-
-Método 2: Instalação Manual
-Passo 1: Instalar o Millennium
-
-powershell
-# Execute no PowerShell como Administrador
-iwr -useb "https://steambrew.app/install.ps1" | iex
-
-Passo 2: Instalar o Plugin luafast
-
-powershell
-# Baixe e instale o plugin luafast
-$pluginUrl = "https://github.com/blumenal/luafast_millennium_plugin/archive/refs/heads/main.zip"
-$pluginsPath = "$env:LOCALAPPDATA\MillenniumSteam\plugins"
-iwr -Uri $pluginUrl -OutFile "$env:TEMP\luafast.zip"
-Expand-Archive -Path "$env:TEMP\luafast.zip" -DestinationPath "$pluginsPath\luafast" -Force
-Remove-Item "$env:TEMP\luafast.zip"
 
 🎯 Como Usar
 Abra o Steam com o Millennium instalado
