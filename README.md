@@ -31,7 +31,15 @@ Execute o seguinte comando no **PowerShell como Administrador**:
 # Instala o Millennium e o plugin luafast automaticamente
 irm "https://raw.githubusercontent.com/blumenal/luafast_millennium_plugin/main/install.ps1" | iex
 ```
+## 🗑️ Desinstalação
 
+### Método 1: Desinstalação Automática (Recomendado)
+
+Execute no **PowerShell como Administrador**:
+
+```powershell
+irm "https://raw.githubusercontent.com/blumenal/luafast_millennium_plugin/main/uninstall.ps1" | iex
+```
 🎯 Como Usar
 Abra o Steam com o Millennium instalado
 
