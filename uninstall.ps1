@@ -1,8 +1,8 @@
-# uninstall.ps1 - Script de desinstalação completo do luafast + Millennium
+# uninstall.ps1 - Script de desinstalação SEGURO do luafast + Millennium
 # Repositório: https://github.com/blumenal/luafast_millennium_plugin
 
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "🗑️  Desinstalador Completo luafast + Millennium" -ForegroundColor Cyan
+Write-Host "🗑️  Desinstalador SEGURO luafast + Millennium" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -19,6 +19,30 @@ if (-NOT $isAdmin) {
 }
 
 Write-Host "✅ PowerShell executando como Administrador" -ForegroundColor Green
+
+# LISTA DE PASTAS PROTEGIDAS - NUNCA REMOVER!
+$protectedPaths = @(
+    "C:\",
+    "C:\Windows",
+    "C:\Program Files",
+    "C:\Program Files (x86)",
+    "C:\Users",
+    "C:\ProgramData",
+    $env:USERPROFILE,
+    $env:HOMEPATH,
+    $env:SystemRoot
+)
+
+function Test-ProtectedPath {
+    param([string]$path)
+    
+    foreach ($protected in $protectedPaths) {
+        if ($path -eq $protected -or $path.StartsWith($protected + "\")) {
+            return $true
+        }
+    }
+    return $false
+}
 
 try {
     # Fechar Steam e processos relacionados
@@ -49,24 +73,23 @@ try {
         exit 0
     }
 
-    # Lista completa de locais onde o Millennium pode estar instalado
-    $steamPaths = @(
+    # Locais SEGUROS onde o Millennium pode estar instalado
+    $safeSteamPaths = @(
         "C:\Program Files (x86)\Steam",
-        "C:\Program Files\Steam",
-        [Environment]::GetFolderPath("UserProfile") + "\Desktop\Steam"
+        "C:\Program Files\Steam"
     )
 
-    # Encontrar o caminho real do Steam
+    # Encontrar o caminho real do Steam de forma SEGURA
     $realSteamPath = $null
-    foreach ($path in $steamPaths) {
-        if (Test-Path $path) {
+    foreach ($path in $safeSteamPaths) {
+        if (Test-Path $path -PathType Container) {
             $realSteamPath = $path
             break
         }
     }
 
     if (-not $realSteamPath) {
-        Write-Host "❌ Steam não encontrado nos locais padrão." -ForegroundColor Red
+        Write-Host "❌ Steam não encontrado nos locais seguros." -ForegroundColor Red
         Write-Host "💡 O Millennium pode não estar instalado." -ForegroundColor Yellow
         pause
         exit 1
@@ -80,20 +103,25 @@ try {
         Write-Host "🎮 Desinstalando APENAS o plugin luafast..." -ForegroundColor Yellow
         
         $luafastPaths = @(
-            "$realSteamPath\plugins\luafast",
-            "$env:LOCALAPPDATA\MillenniumSteam\plugins\luafast"
+            "$realSteamPath\plugins\luafast"
         )
         
         $removed = $false
         foreach ($path in $luafastPaths) {
-            if (Test-Path $path) {
+            if (Test-Path $path -PathType Container) {
                 try {
+                    if (Test-ProtectedPath $path) {
+                        Write-Host "   ⚠️  Caminho protegido, ignorando: $path" -ForegroundColor Yellow
+                        continue
+                    }
                     Remove-Item $path -Recurse -Force
-                    Write-Host "✅ Plugin luafast removido: $path" -ForegroundColor Green
+                    Write-Host "   ✅ Plugin luafast removido: $path" -ForegroundColor Green
                     $removed = $true
                 } catch {
-                    Write-Host "❌ Erro ao remover $path : $($_.Exception.Message)" -ForegroundColor Red
+                    Write-Host "   ❌ Erro ao remover $path : $($_.Exception.Message)" -ForegroundColor Red
                 }
+            } else {
+                Write-Host "   ℹ️  Não encontrado: $path" -ForegroundColor Gray
             }
         }
         
@@ -107,7 +135,7 @@ try {
         Write-Host "==================================================" -ForegroundColor Cyan
 
     } elseif ($choice -eq "2") {
-        # Opção 2: Desinstalação COMPLETA
+        # Opção 2: Desinstalação COMPLETA mas SEGURA
         Write-Host ""
         Write-Host "⚠️  ATENÇÃO: Esta opção removerá COMPLETAMENTE o Millennium e todos os plugins!" -ForegroundColor Red
         Write-Host "    Isso inclui o luafast e qualquer outro plugin instalado." -ForegroundColor Yellow
@@ -116,58 +144,47 @@ try {
         
         if ($confirm -eq 'SIM') {
             Write-Host ""
-            Write-Host "🗑️  Iniciando desinstalação COMPLETA..." -ForegroundColor Red
+            Write-Host "🗑️  Iniciando desinstalação COMPLETA e SEGURA..." -ForegroundColor Yellow
             
-            # Lista COMPLETA de arquivos e pastas do Millennium
-            $millenniumItems = @(
+            # Lista SEGURA de arquivos e pastas do Millennium - APENAS LOCAIS CONHECIDOS E SEGUROS
+            $safeMillenniumItems = @(
                 # Arquivos na raiz do Steam
                 "$realSteamPath\hid.dll",
                 "$realSteamPath\millennium.dll",
                 "$realSteamPath\steamui.dll",
                 "$realSteamPath\steamui.dll.original",
                 
-                # Pastas de plugins
+                # Pastas de plugins (apenas se dentro do Steam)
                 "$realSteamPath\plugins",
                 "$realSteamPath\ext",
-                "$realSteamPath\millennium",
                 
-                # AppData Local
+                # AppData Local - APENAS pastas específicas do Millennium
                 "$env:LOCALAPPDATA\MillenniumSteam",
-                "$env:LOCALAPPDATA\steam_cef",
-                
-                # AppData Roaming
-                "$env:APPDATA\MillenniumSteam",
-                "$env:APPDATA\steam_cef",
-                
-                # Registro (usando reg)
-                "HKCU:\Software\MillenniumSteam",
-                "HKCU:\Software\SteamCEF"
+                "$env:LOCALAPPDATA\steam_cef"
             )
-
-            # Adicionar possíveis locais alternativos
-            $alternativePaths = @(
-                "C:\Program Files\MillenniumSteam",
-                "C:\Program Files (x86)\MillenniumSteam",
-                [Environment]::GetFolderPath("UserProfile") + "\MillenniumSteam"
-            )
-            $millenniumItems += $alternativePaths
 
             Write-Host "🔍 Procurando e removendo componentes do Millennium..." -ForegroundColor Yellow
             
             $removedCount = 0
             $errorCount = 0
             
-            foreach ($item in $millenniumItems) {
+            foreach ($item in $safeMillenniumItems) {
+                # VERIFICAÇÃO DE SEGURANÇA CRÍTICA
+                if (Test-ProtectedPath $item) {
+                    Write-Host "   🚫 BLOQUEADO (protegido): $item" -ForegroundColor Red
+                    continue
+                }
+                
                 if (Test-Path $item) {
                     try {
-                        if ($item -match "^(HK(CU|LM|CR):\\.*)") {
-                            # É uma chave de registro
-                            Remove-Item $item -Recurse -Force -ErrorAction SilentlyContinue
-                            Write-Host "   ✅ Registro: $item" -ForegroundColor Green
-                        } else {
-                            # É arquivo ou pasta
+                        if (Test-Path $item -PathType Container) {
+                            # É uma pasta
                             Remove-Item $item -Recurse -Force
-                            Write-Host "   ✅ Removido: $item" -ForegroundColor Green
+                            Write-Host "   ✅ Pasta removida: $item" -ForegroundColor Green
+                        } else {
+                            # É um arquivo
+                            Remove-Item $item -Force
+                            Write-Host "   ✅ Arquivo removido: $item" -ForegroundColor Green
                         }
                         $removedCount++
                     } catch {
@@ -175,77 +192,50 @@ try {
                         Write-Host "      $($_.Exception.Message)" -ForegroundColor DarkRed
                         $errorCount++
                     }
+                } else {
+                    Write-Host "   ℹ️  Não encontrado: $item" -ForegroundColor Gray
                 }
             }
 
-            # Tentar desinstalar via winget/chocolatey se existir
-            try {
-                Write-Host "🔍 Verificando instaladores de pacotes..." -ForegroundColor Yellow
-                
-                # Winget
-                $wingetCheck = Get-Command winget -ErrorAction SilentlyContinue
-                if ($wingetCheck) {
-                    $millenniumPackage = winget list --name "Millennium" 2>$null
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Host "   📦 Removendo Millennium do winget..." -ForegroundColor Yellow
-                        winget uninstall --name "Millennium" --silent --accept-source-agreements
-                        Write-Host "   ✅ Millennium removido do winget" -ForegroundColor Green
-                        $removedCount++
-                    }
-                }
-                
-                # Chocolatey
-                $chocoCheck = Get-Command choco -ErrorAction SilentlyContinue
-                if ($chocoCheck) {
-                    $chocoPackage = choco list --local-only --name "millennium" 2>$null
-                    if ($LASTEXITCODE -eq 0 -and $chocoPackage -match "millennium") {
-                        Write-Host "   📦 Removendo Millennium do Chocolatey..." -ForegroundColor Yellow
-                        choco uninstall millennium -y
-                        Write-Host "   ✅ Millennium removido do Chocolatey" -ForegroundColor Green
-                        $removedCount++
-                    }
-                }
-            } catch {
-                Write-Host "   ℹ️  Nenhum instalador de pacotes encontrado" -ForegroundColor Gray
-            }
-
-            # Limpar caches adicionais
-            Write-Host "🧹 Limpando caches e arquivos temporários..." -ForegroundColor Yellow
+            # Limpar caches de forma SEGURA
+            Write-Host "🧹 Limpando caches de forma segura..." -ForegroundColor Yellow
             
-            $cachePaths = @(
+            $safeCachePatterns = @(
                 "$env:TEMP\Millennium*",
-                "$env:TEMP\steam*",
-                "$env:TEMP\cef*",
-                "$env:LOCALAPPDATA\Temp\Millennium*"
+                "$env:TEMP\steam_cef*"
             )
             
-            foreach ($cachePattern in $cachePaths) {
+            foreach ($cachePattern in $safeCachePatterns) {
                 Get-ChildItem -Path $cachePattern -ErrorAction SilentlyContinue | ForEach-Object {
                     try {
+                        if (Test-ProtectedPath $_.FullName) {
+                            Write-Host "   🚫 Cache bloqueado: $($_.Name)" -ForegroundColor Red
+                            return
+                        }
                         Remove-Item $_.FullName -Recurse -Force
                         Write-Host "   ✅ Cache: $($_.Name)" -ForegroundColor Green
                         $removedCount++
                     } catch {
-                        # Ignora erros em cache
+                        Write-Host "   ❌ Erro no cache: $($_.Name)" -ForegroundColor DarkRed
                     }
                 }
             }
 
             Write-Host ""
             Write-Host "==================================================" -ForegroundColor Cyan
-            Write-Host "✅ Desinstalação COMPLETA concluída!" -ForegroundColor Green
+            Write-Host "✅ Desinstalação COMPLETA e SEGURA concluída!" -ForegroundColor Green
             Write-Host "==================================================" -ForegroundColor Cyan
             Write-Host ""
             Write-Host "📊 Resumo da desinstalação:" -ForegroundColor Yellow
-            Write-Host "   • Itens removidos: $removedCount" -ForegroundColor White
+            Write-Host "   • Itens removidos com segurança: $removedCount" -ForegroundColor White
             if ($errorCount -gt 0) {
                 Write-Host "   • Erros encontrados: $errorCount" -ForegroundColor Red
             }
             Write-Host ""
             Write-Host "🎯 Componentes removidos:" -ForegroundColor Yellow
             Write-Host "   • Plugin luafast" -ForegroundColor White
-            Write-Host "   • Millennium (arquivos, pastas e registros)" -ForegroundColor White
-            Write-Host "   • Caches e arquivos temporários" -ForegroundColor White
+            Write-Host "   • Millennium (arquivos e pastas seguras)" -ForegroundColor White
+            Write-Host "   • Caches temporários" -ForegroundColor White
             Write-Host ""
             Write-Host "💡 Agora o Steam está completamente limpo!" -ForegroundColor Cyan
             Write-Host "   Reinicie o Steam para voltar à configuração original." -ForegroundColor White
@@ -268,7 +258,7 @@ try {
     Write-Host "💡 Soluções possíveis:" -ForegroundColor Yellow
     Write-Host "   • Execute o PowerShell como Administrador" -ForegroundColor White
     Write-Host "   • Feche o Steam manualmente antes de executar" -ForegroundColor White
-    Write-Host "   • Remova os arquivos manualmente:" -ForegroundColor White
+    Write-Host "   • Remova os arquivos manualmente com segurança:" -ForegroundColor White
     Write-Host "     1. Delete C:\Program Files (x86)\Steam\hid.dll" -ForegroundColor White
     Write-Host "     2. Delete C:\Program Files (x86)\Steam\plugins\" -ForegroundColor White
     Write-Host "     3. Delete %LOCALAPPDATA%\MillenniumSteam" -ForegroundColor White
@@ -277,3 +267,6 @@ try {
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     exit 1
 }
+
+Write-Host ""
+Write-Host "🔒 Desinstalação concluída com SEGURANÇA!" -ForegroundColor Green
