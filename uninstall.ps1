@@ -1,6 +1,252 @@
 # uninstall.ps1 - Script de desinstalação para Millennium + luafast
 # Repositório: https://github.com/blumenal/luafast_millennium_plugin
 
+# Define ANSI escape sequence for bold purple color
+$BoldPurple = [char]27 + '[38;5;219m'
+$BoldGreen = [char]27 + '[1;32m'
+$BoldYellow = [char]27 + '[1;33m'
+$BoldRed = [char]27 + '[1;31m'
+$BoldGrey = [char]27 + '[1;30m'
+$BoldLightBlue = [char]27 + '[38;5;75m'
+$ResetColor = [char]27 + '[0m'
+
+function Ask-Boolean-Question {
+    param([bool]$newLine = $true, [string]$question, [bool]$default = $false)
+
+    $choices = if ($default) { "[Y/n]" } else { "[y/N]" }
+    $parsedQuestion = "${BoldPurple}::${ResetColor} $question $choices"
+    $parsedQuestion = if ($newLine) { "`n$parsedQuestion" } else { $parsedQuestion }
+
+    $choice = Read-Host "$parsedQuestion"
+
+    if ($choice -eq "") {
+        $choice = if ($default) { "y" } else { "n" }
+    }
+
+    if ($choice -eq "y" -or $choice -eq "yes") {
+        $choice = "Yes"
+    }
+    else {
+        $choice = "No"
+    }
+
+    [Console]::CursorTop -= if ($newLine) { 2 } else { 1 }
+    [Console]::SetCursorPosition(0, [Console]::CursorTop)
+    [Console]::Write(' ' * [Console]::WindowWidth)
+    Write-Host "`r${parsedQuestion}: ${BoldLightBlue}$choice${ResetColor}"
+
+    return $(if ($choice -eq "yes") { $true } else { $false })
+}
+
+function Close-SteamProcess {
+    $steamProcess = Get-Process -Name "steam" -ErrorAction SilentlyContinue
+
+    if ($steamProcess) {
+        Stop-Process -Name "steam" -Force
+        Write-Output "${BoldPurple}[+]${ResetColor} Closed Steam process."
+    }
+}
+
+function ConvertTo-ReadableSize {
+    param([int64]$size)
+    
+    if ($size -eq 0) {
+        return "0 Bytes"
+    }
+
+    $units = @("Bytes", "KiB", "MiB", "GiB")
+    $index = [Math]::Floor([Math]::Log($size, 1024))
+    $sizeFormatted = [Math]::Round($size / [Math]::Pow(1024, $index), 2, [MidpointRounding]::AwayFromZero)
+    
+    return "$sizeFormatted $($units[$index])"
+}
+
+function Get-FileSize {
+    param ($relativePath)
+    $totalSize = 0
+
+    $absolutePath = Join-Path -Path $steamPath -ChildPath $relativePath
+
+    if (Test-Path $absolutePath -PathType Leaf) {
+        $fileSize = (Get-Item $absolutePath).Length
+        $totalSize += $fileSize
+    }
+
+    return $totalSize
+}
+
+function Get-FolderSize {
+    param ([Parameter(Mandatory = $true)] [string]$FolderPath)
+
+    $totalSize = 0
+    $absolutePath = Join-Path -Path $steamPath -ChildPath $FolderPath
+
+    if (-not (Test-Path -Path $absolutePath -PathType Container)) {
+        return 0
+    }
+
+    $files = Get-ChildItem -Path $absolutePath -File -Recurse -Force
+
+    foreach ($file in $files) {
+        $totalSize += $file.Length
+    }
+    return $totalSize
+}
+
+function ContentIsDirectory {
+    param ([string]$path)
+    return (Test-Path -Path (Join-Path -Path $steamPath -ChildPath $path) -PathType Container)
+}
+
+function DynamicSizeCalculator {
+    param ($value)
+
+    $totalSize = 0
+
+    if ($value -is [System.Object[]]) {
+
+        for ($i = 0; $i -lt $value.Length; $i += 1) {
+
+            $isDirectory = ContentIsDirectory -path $value[$i]
+            if ($isDirectory) {
+                $totalSize += Get-FolderSize -FolderPath $value[$i]
+            }
+            else {
+                $totalSize += Get-FileSize -relativePath $value[$i]
+            }
+        }
+        
+    }
+    else { 
+        $isDirectory = ContentIsDirectory -path $value
+        if ($isDirectory) {
+            $totalSize += Get-FolderSize -FolderPath $value
+        }
+        else {
+            $totalSize += Get-FileSize -relativePath $value
+        }
+    }
+    return $totalSize
+}
+
+function PrettyPrintSizeOnDisk {
+    param ([Parameter(Mandatory = $true)] [object[]]$targetPath)
+
+    $totalSize = 0
+    $index = 0
+
+    for ($i = 0; $i -lt $targetPath.Length; $i += 2) {
+        $index++
+        $key = $targetPath[$i]
+        $value = $targetPath[$i + 1]
+
+        $size = DynamicSizeCalculator -value $value
+        $totalSize += $size
+
+        if ($size -eq 0) {
+            $strSize = "0 Bytes"
+        }
+        else {
+            $strSize = ConvertTo-ReadableSize -size $size
+        }
+        Write-Output "${BoldGrey}++${ResetColor} [$index] ${BoldPurple}$($key.PadRight(15))${ResetColor} $($strSize.PadLeft(10))"
+    }
+
+    $global:globalInitialSize = $totalSize
+    Write-Output "`n${BoldPurple}::${ResetColor} Current Install Size: $(ConvertTo-ReadableSize -size $totalSize)"
+}
+
+function Uninstall-Millennium {
+    Write-Host "`n${BoldPurple}::${ResetColor} Iniciando desinstalação do Millennium..." -ForegroundColor Cyan
+
+    # Path to installed files
+    $jsonFilePath = Join-Path -Path $steamPath -ChildPath "/ext/data/logs/installer.log"
+
+    # test if file exists
+    if (-not (Test-Path -Path $jsonFilePath)) {
+        Write-Host "${BoldRed}[!]${ResetColor} Millennium installation log not found. It may have been already uninstalled." -ForegroundColor Yellow
+        return
+    }
+
+    $jsonContent = Get-Content -Path $jsonFilePath -Raw
+    $jsonObject = $jsonContent | ConvertFrom-Json
+
+    Write-Host "${BoldPurple}::${ResetColor} Reading package database...`n"
+
+    $assets = @(
+        "Millennium", @("user32.dll", "python311.dll", "millennium.dll")
+        "Core Modules", "ext/data/assets"
+        "Python Cache", "ext/data/cache"
+        "User Plugins", "plugins"
+        "User Themes", "steamui/skins"
+    )
+
+    PrettyPrintSizeOnDisk -targetPath $assets
+    $packageList = (1..($assets.Length / 2)) -join ''
+
+    $result = Read-Host "${BoldPurple}::${ResetColor} Enter a numerical list of packages to uninstall [default=$packageList]"
+
+    if (-not $result) {
+        $result = $packageList
+    }
+
+    $selectedPackages = ($result.ToCharArray() | Select-Object -Unique) | ForEach-Object { $assets[($_ - 48) * 2 - 2] }
+    $selectedPackagesPath = ($result.ToCharArray() | Select-Object -Unique) | ForEach-Object { $assets[($_ - 48) * 2 - 1] }
+
+    $purgedAssetsSize = DynamicSizeCalculator -value $selectedPackagesPath
+    $selectedPackages = $selectedPackages -join ", "
+
+    $strReclaimedSize = ConvertTo-ReadableSize -size $purgedAssetsSize
+    $strRemainingSize = ConvertTo-ReadableSize -size ($global:globalInitialSize - $purgedAssetsSize)
+
+    Write-Host "`n${BoldPurple}++${ResetColor} Purging Packages: [${BoldRed}$selectedPackages${ResetColor}]`n"
+
+    Write-Host " Total Removed Size:    $($strReclaimedSize.PadLeft(10))"
+    Write-Host " Total Remaining Size:  $($strRemainingSize.PadLeft(10))`n"
+
+    $result = Ask-Boolean-Question -question "Proceed with PERMANENT removal of selected packages?" -default $true -newLine $false
+
+    if (-not $result) {
+        Write-Output "${BoldPurple}[+]${ResetColor} Removal aborted."
+        return
+    }
+
+    $deletionSuccess = $true
+
+    $selectedPackagesPath | ForEach-Object {
+
+        $isDirectory = ContentIsDirectory -path $_
+
+        if ($_ -match "user32.dll") {
+            $cefRemoteDebugging = Join-Path -Path $steamPath -ChildPath ".cef-enable-remote-debugging"
+
+            if (Test-Path -Path $cefRemoteDebugging) {
+                Remove-Item -Path $cefRemoteDebugging -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        $absolutePath = Join-Path -Path $steamPath -ChildPath $_
+
+        Remove-Item -Path $absolutePath -Recurse -Force -ErrorAction SilentlyContinue
+
+        if (-not $?) {
+            $global:deletionSuccess = $false
+            Write-Host "${BoldRed}[!]${ResetColor} Failed to remove: $absolutePath" -ForegroundColor Red
+        }
+    }
+
+    if ($deletionSuccess) {
+        Write-Host "${BoldGreen}++${ResetColor} Successfully removed selected packages." -ForegroundColor Green
+    }
+    else {
+        Write-Host "${BoldRed}[!]${ResetColor} Some deletions failed. Please manually remove the remaining files." -ForegroundColor Red
+    }
+}
+
+# ==================================================
+# MAIN DESINSTALADOR SCRIPT
+# ==================================================
+
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host "🗑️  Desinstalador Automático luafast + Millennium" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
@@ -24,30 +270,54 @@ try {
     # Fechar Steam se estiver aberto
     Write-Host ""
     Write-Host "🔴 Fechando Steam..." -ForegroundColor Yellow
-    $steamProcess = Get-Process -Name "steam" -ErrorAction SilentlyContinue
-    if ($steamProcess) {
-        Write-Host "   ⏳ Fechando processos do Steam..." -ForegroundColor Gray
-        Stop-Process -Name "steam" -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 3
-        Write-Host "   ✅ Steam fechado" -ForegroundColor Green
+    Close-SteamProcess
+
+    # Obter caminho do Steam
+    Write-Host ""
+    Write-Host "🔍 Localizando instalação do Steam..." -ForegroundColor Yellow
+    
+    $customSteamPath = Read-Host "${BoldPurple}[?]${ResetColor} Steam Path (leave blank for default)"
+
+    if (-not $customSteamPath) {
+        $steamPath = (Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue).SteamPath
+
+        if (-not $steamPath) {
+            $steamPath = "C:\Program Files (x86)\Steam"
+            Write-Host "${BoldYellow}[!]${ResetColor} Steam path not found in registry, using default: $steamPath" -ForegroundColor Yellow
+        } else {
+            [Console]::CursorTop -= 1
+            [Console]::SetCursorPosition(0, [Console]::CursorTop)
+            [Console]::Write(' ' * [Console]::WindowWidth)
+            Write-Output "`r${BoldPurple}[?]${ResetColor} Steam Path (leave blank for default): ${BoldLightBlue}$steamPath${ResetColor}"
+        }
     } else {
-        Write-Host "   ℹ️ Steam não estava em execução" -ForegroundColor Gray
+        $steamPath = $customSteamPath
     }
 
-    # Caminhos de instalação
-    $steamPath = "C:\Program Files (x86)\Steam"
+    if (-not (Test-Path -Path $steamPath)) {
+        Write-Host "${BoldRed}[!]${ResetColor} Steam path not found: $steamPath" -ForegroundColor Red
+        throw "Steam path not found"
+    }
+
+    Write-Host "${BoldGreen}[+]${ResetColor} Steam encontrado em: $steamPath" -ForegroundColor Green
+
+    # Caminhos de instalação do luafast
     $pluginPath = "$steamPath\plugins\luafast"
     $hidDllPath = "$steamPath\hid.dll"
 
     Write-Host ""
-    Write-Host "📁 Removendo arquivos..." -ForegroundColor Yellow
+    Write-Host "📁 Removendo plugin luafast..." -ForegroundColor Yellow
 
     # Remover plugin luafast
     if (Test-Path $pluginPath) {
         Write-Host "   🗑️ Removendo plugin luafast..." -ForegroundColor Gray
+        
+        $luafastSize = Get-FolderSize -FolderPath "plugins\luafast"
+        $luafastSizeStr = ConvertTo-ReadableSize -size $luafastSize
+        
         try {
             Remove-Item $pluginPath -Recurse -Force -ErrorAction Stop
-            Write-Host "   ✅ Plugin luafast removido: $pluginPath" -ForegroundColor Green
+            Write-Host "   ✅ Plugin luafast removido: $pluginPath ($luafastSizeStr)" -ForegroundColor Green
         } catch {
             Write-Host "   ⚠️ Aviso: Não foi possível remover completamente o plugin: $($_.Exception.Message)" -ForegroundColor Yellow
         }
@@ -58,6 +328,9 @@ try {
     # Remover hid.dll (com verificação de segurança)
     if (Test-Path $hidDllPath) {
         Write-Host "   🗑️ Removendo hid.dll..." -ForegroundColor Gray
+        
+        $hidSize = Get-FileSize -relativePath "hid.dll"
+        $hidSizeStr = ConvertTo-ReadableSize -size $hidSize
         
         # Fazer backup da hid.dll antes de remover (opcional)
         $backupPath = "$hidDllPath.backup"
@@ -70,7 +343,7 @@ try {
         
         try {
             Remove-Item $hidDllPath -Force -ErrorAction Stop
-            Write-Host "   ✅ hid.dll removida: $hidDllPath" -ForegroundColor Green
+            Write-Host "   ✅ hid.dll removida: $hidDllPath ($hidSizeStr)" -ForegroundColor Green
         } catch {
             Write-Host "   ⚠️ Aviso: Não foi possível remover hid.dll: $($_.Exception.Message)" -ForegroundColor Yellow
         }
@@ -89,45 +362,11 @@ try {
         }
     }
 
-    # Opção para desinstalar Millennium
+    # Desinstalar Millennium
     Write-Host ""
-    Write-Host "🔍 Verificando Millennium..." -ForegroundColor Yellow
-    $choice = Read-Host "Deseja desinstalar o Millennium também? (S/N)"
+    $choice = Read-Host "${BoldPurple}::${ResetColor} Deseja desinstalar o Millennium também? (S/N)"
     if ($choice -eq 'S' -or $choice -eq 's') {
-        Write-Host "   🗑️ Desinstalando Millennium..." -ForegroundColor Gray
-        
-        # Tentar encontrar e executar desinstalador do Millennium
-        $millenniumPaths = @(
-            "$env:LOCALAPPDATA\Millennium",
-            "$env:PROGRAMFILES\Millennium",
-            "$env:PROGRAMFILES(X86)\Millennium"
-        )
-        
-        $uninstallFound = $false
-        foreach ($path in $millenniumPaths) {
-            if (Test-Path $path) {
-                Write-Host "   📁 Millennium encontrado em: $path" -ForegroundColor Gray
-                
-                # Procurar por desinstalador
-                $uninstaller = Get-ChildItem $path -Filter "uninstall*.exe" -Recurse | Select-Object -First 1
-                if ($uninstaller) {
-                    Write-Host "   🚀 Executando desinstalador: $($uninstaller.FullName)" -ForegroundColor Gray
-                    try {
-                        Start-Process -FilePath $uninstaller.FullName -Wait
-                        Write-Host "   ✅ Desinstalador do Millennium executado" -ForegroundColor Green
-                        $uninstallFound = $true
-                        break
-                    } catch {
-                        Write-Host "   ❌ Erro ao executar desinstalador: $($_.Exception.Message)" -ForegroundColor Red
-                    }
-                }
-            }
-        }
-        
-        if (-not $uninstallFound) {
-            Write-Host "   ℹ️ Desinstalador do Millennium não encontrado automaticamente" -ForegroundColor Yellow
-            Write-Host "   💡 Você pode desinstalar manualmente pelo Painel de Controle" -ForegroundColor White
-        }
+        Uninstall-Millennium
     }
 
     Write-Host ""
@@ -138,7 +377,9 @@ try {
     Write-Host "📝 Próximos passos:" -ForegroundColor Yellow
     Write-Host "   1. Reinicie o Steam para aplicar as mudanças" -ForegroundColor White
     Write-Host "   2. O plugin luafast foi completamente removido" -ForegroundColor White
-    Write-Host "   3. Se tiver problemas, verifique o backup da hid.dll em: $hidDllPath.backup" -ForegroundColor White
+    if (Test-Path "$hidDllPath.backup") {
+        Write-Host "   3. Backup da hid.dll disponível em: $hidDllPath.backup" -ForegroundColor White
+    }
     Write-Host ""
     Write-Host "🌐 Para suporte:" -ForegroundColor Cyan
     Write-Host "   Repositório: https://github.com/blumenal/luafast_millennium_plugin" -ForegroundColor White
