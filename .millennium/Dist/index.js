@@ -127,7 +127,7 @@ let PluginEntryPointMain = function () {
             },
             "pt-BR": {
                 btn: {
-                    add: "Grátis - LuaFast",
+                    add: "Pegar Emprestado",
                     remove: "Remover da Biblioteca",
                     loading: "Carregando...",
                     removing: "Removendo...",
