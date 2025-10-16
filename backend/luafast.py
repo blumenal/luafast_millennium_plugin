@@ -156,7 +156,7 @@ class luafastManager:
         # Se nenhum repositório teve sucesso
         self._set_download_state(appid, {
             'status': 'failed',
-            'error': f'Jogo não encontrado em nenhum repositório: {repositories}'
+            'error': f'Ainda não temos as keys para esse jogos! Entre no grupo do Telegram para fazer o pedido.'
         })
 
     def add_via_lua(self, appid: int, endpoints: Optional[List[str]] = None) -> Dict[str, Any]:
