@@ -42,10 +42,13 @@ irm "https://raw.githubusercontent.com/blumenal/luafast_millennium_plugin/main/u
 ```
 🎯 Como Usar
 Abra o Steam com o Millennium instalado
+Selecione a opção STEAM na aba superior e vá ate a opção Millennium
+Selecione a aba plugins, ative o plugin luafast, salve e reinicie a steam.
 
 Navegue até a página do jogo desejado na Steam Store
 
-Clique no botão "Pegar Emprestado" que aparecerá na página de compra
+Clique no botão "Pegar Emprestado" que aparecerá na página de compra 
+(SE O BOTÃO NÃO ESTIVER VISÍVEL APERTE NO BOTÃO "RESTART STEAM")
 
 Aguarde o processo de download e instalação automática
 
@@ -59,7 +62,7 @@ O plugin adiciona um botão flutuante "Restart Steam" no canto inferior esquerdo
 🔧 Funcionalidades Técnicas
 Sistema de Download Multi-fonte
 
-Sem necissidade de ter o Steam Tools isntalado
+**Sem necissidade de ter o Steam Tools isntalado**
 
 Interface Integrada: Botões nativos na interface da Steam
 
@@ -70,21 +73,22 @@ Gerenciamento de Biblioteca: Adicione e remova jogos facilmente
 Atualizações Automáticas: Sistema de repositórios atualizável
 
 🐛 Solução de Problemas
-O botão não aparece?
+**O botão não aparece?**
 Verifique se o Millennium está instalado corretamente
+
 
 Certifique-se de estar na página de um jogo específico (URL /app/...)
 
 Reinicie o Steam
 
-Download falha?
+**Download falha?**
 Verifique sua conexão com a internet
 
 O jogo pode ter proteção Denuvo (não suportado)
 
 Tente reiniciar o Steam e tentar novamente
 
-Jogo não aparece na biblioteca?
+**Jogo não aparece na biblioteca?**
 Use o botão "Restart Steam" para aplicar as mudanças
 
 Verifique se o download foi concluído com sucesso
