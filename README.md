@@ -40,7 +40,8 @@ Execute no **PowerShell como Administrador**:
 ```powershell
 irm "https://raw.githubusercontent.com/blumenal/luafast_millennium_plugin/main/uninstall.ps1" | iex
 ```
-🎯 Como Usar
+🎯 **Como Usar**
+
 Abra o Steam com o Millennium instalado
 Selecione a opção STEAM na aba superior e vá ate a opção Millennium
 Selecione a aba plugins, ative o plugin luafast, salve e reinicie a steam.
