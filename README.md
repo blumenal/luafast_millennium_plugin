@@ -60,6 +60,9 @@ Aproveite seu jogo na biblioteca!
 ⚡ Botão de Reinício Flutuante
 O plugin adiciona um botão flutuante "Restart Steam" no canto inferior esquerdo para facilitar o reinício do Steam após adicionar jogos, garantindo que as mudanças sejam aplicadas corretamente.
 
+**Veja o vídeo e aprenda a instalar e usar.**
+https://www.youtube.com/watch?v=Ygc04KlrmIY&t=384s
+
 🔧 Funcionalidades Técnicas
 Sistema de Download Multi-fonte
 
