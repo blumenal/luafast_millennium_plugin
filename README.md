@@ -42,6 +42,9 @@ irm "https://raw.githubusercontent.com/blumenal/luafast_millennium_plugin/main/u
 ```
 🎯 **Como Usar**
 
+**Veja o vídeo e aprenda a instalar e usar.**
+https://www.youtube.com/watch?v=Ygc04KlrmIY&t=384s
+
 Abra o Steam com o Millennium instalado
 Selecione a opção STEAM na aba superior e vá ate a opção Millennium
 Selecione a aba plugins, ative o plugin luafast, salve e reinicie a steam.
@@ -60,8 +63,7 @@ Aproveite seu jogo na biblioteca!
 ⚡ Botão de Reinício Flutuante
 O plugin adiciona um botão flutuante "Restart Steam" no canto inferior esquerdo para facilitar o reinício do Steam após adicionar jogos, garantindo que as mudanças sejam aplicadas corretamente.
 
-**Veja o vídeo e aprenda a instalar e usar.**
-https://www.youtube.com/watch?v=Ygc04KlrmIY&t=384s
+
 
 🔧 Funcionalidades Técnicas
 Sistema de Download Multi-fonte
