@@ -124,3 +124,6 @@ Sistema multi-repositório aprimorado
 ⭐ Não esqueça de dar uma estrela no repositório se o plugin foi útil para você!
 
 *Atualizado para v0.1.0 - Sistema estável e confiável*
+
+**Se você não gostar desse método teste as outras duas versões do LuaFast.**
+https://github.com/blumenal/luafast
