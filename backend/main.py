@@ -6,7 +6,7 @@ from api_manager import APIManager
 from luafast import luafastManager
 from steam_utils import has_lua_for_app, list_lua_apps
 from config import VERSION
-from restart_steam import restart_steam  # Importar a função de reinício
+from restart_steam import restart_steam
 
 logger = PluginUtils.Logger()
 
@@ -36,15 +36,12 @@ def GetPluginDir():
 
 class Plugin:
     def __init__(self):
-        self.plugin_dir = GetPluginDir()
-        self.backend_path = os.path.join(self.plugin_dir, 'backend')
-        self.api_manager = APIManager(self.backend_path)
-        self.luafast_manager = luafastManager(self.backend_path, self.api_manager)
+        # Initialize instance variables
+        self.plugin_dir = None
+        self.backend_path = None
+        self.api_manager = None
+        self.luafast_manager = None
         self._injected = False
-
-    # SEM MAIS VERIFICAÇÃO DE API KEY
-    def has_api_key(self):
-        return True
 
     def _inject_webkit_files(self):
         if self._injected:
@@ -52,6 +49,7 @@ class Plugin:
 
         try:
             js_file_path = os.path.join(self.plugin_dir, '.millennium', 'Dist', 'index.js')
+
             if os.path.exists(js_file_path):
                 Millennium.add_browser_js(js_file_path)
                 self._injected = True
@@ -64,22 +62,30 @@ class Plugin:
         logger.log("luafast: v0.1.0 ready - GitHub Version")
 
     def _load(self):
+        global plugin
+        plugin = self  # Store instance for module-level functions
+
+        logger.log(f"luafast: backend loading (v{VERSION})")
+
+        # Initialize plugin components
+        self.plugin_dir = GetPluginDir()
+        self.backend_path = os.path.join(self.plugin_dir, 'backend')
+        self.api_manager = APIManager(self.backend_path)
+        self.luafast_manager = luafastManager(self.backend_path, self.api_manager)
+
         self._inject_webkit_files()
         Millennium.ready()
+        logger.log("luafast: backend ready")
 
     def _unload(self):
         logger.log("Unloading luafast plugin")
 
-_plugin_instance = None
+# Global plugin instance - will be set in _load() when Millennium calls it
+plugin = None
 
 def get_plugin():
-    global _plugin_instance
-    if _plugin_instance is None:
-        _plugin_instance = Plugin()
-        _plugin_instance._load()
-    return _plugin_instance
-
-plugin = get_plugin()
+    """Get the plugin instance. Millennium will have already instantiated it."""
+    return plugin
 
 class Logger:
     @staticmethod
@@ -97,7 +103,6 @@ def hasluaForApp(appid: int) -> str:
 
 def addVialuafast(appid: int) -> str:
     try:
-        # CHAMADA DIRETA - SEM VERIFICAÇÃO DE API
         endpoints = plugin.api_manager.get_download_endpoints()
         result = plugin.luafast_manager.add_via_lua(appid, endpoints)
         return json_response(result)
@@ -121,8 +126,6 @@ def GetLocalLibrary() -> str:
         logger.error(f'GetLocalLibrary failed: {e}')
         return error_response(str(e))
 
-# FUNÇÕES DE API KEY REMOVIDAS: SetAPIKey, GetAPIKeyStatus
-
 def removeVialuafast(appid: int) -> str:
     try:
         result = plugin.luafast_manager.remove_via_lua(appid)
@@ -131,7 +134,6 @@ def removeVialuafast(appid: int) -> str:
         logger.error(f'removeVialuafast failed for {appid}: {e}')
         return error_response(str(e))
 
-# NOVA FUNÇÃO: restartSteam
 def restartSteam() -> str:
     try:
         success = restart_steam()
