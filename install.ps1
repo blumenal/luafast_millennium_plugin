@@ -1,6 +1,10 @@
 # install.ps1 - Script de instalação automática para Millennium + luafast
 # Repositório: https://github.com/blumenal/luafast_millennium_plugin
 
+# Configurações para evitar fechamento prematuro
+$ErrorActionPreference = 'Stop'
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
+
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host "🚀 Instalador Automático luafast + Millennium + Python" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
@@ -14,7 +18,9 @@ if (-NOT $isAdmin) {
     Write-Host "   1. Clique com botão direito no PowerShell" -ForegroundColor Yellow
     Write-Host "   2. Selecione 'Executar como Administrador'" -ForegroundColor Yellow
     Write-Host "   3. Execute o comando novamente" -ForegroundColor Yellow
-    pause
+    Write-Host ""
+    Write-Host "Pressione qualquer tecla para fechar..." -ForegroundColor Gray
+    $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown') | Out-Null
     exit 1
 }
 
@@ -84,7 +90,7 @@ try {
         Remove-Item $pythonInstallerPath -Force -ErrorAction SilentlyContinue
         
         # Verificar novamente se Python está disponível
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 3
         $pythonInstalled = $false
         foreach ($pythonCmd in $pythonVersions) {
             try {
@@ -103,16 +109,69 @@ try {
         }
     }
 
+    # Passo 1.5: Instalar dependências Python
+    Write-Host ""
+    Write-Host "📦 Passo 1.5/3: Instalando dependências Python..." -ForegroundColor Yellow
+    
+    $dependenciesInstalled = $false
+    $maxRetries = 3
+    
+    foreach ($pythonCmd in $pythonVersions) {
+        for ($retry = 1; $retry -le $maxRetries; $retry++) {
+            try {
+                Write-Host "   🔍 Tentando instalar dependências com $pythonCmd (tentativa $retry/$maxRetries)..." -ForegroundColor Gray
+                
+                # Verificar se o comanda Python está disponível
+                $null = Get-Command $pythonCmd -ErrorAction Stop
+                
+                # Atualizar pip primeiro
+                & $pythonCmd -m pip install --upgrade pip --disable-pip-version-check --no-warn-script-location 2>&1 | Out-Null
+                
+                # Instalar requests (única dependência necessária)
+                & $pythonCmd -m pip install requests --disable-pip-version-check --no-warn-script-location 2>&1 | Out-Null
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "   ✅ Dependências Python instaladas com sucesso!" -ForegroundColor Green
+                    $dependenciesInstalled = $true
+                    break
+                } else {
+                    Write-Host "   ⚠️ Falha na tentativa $retry com $pythonCmd" -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Host "   ⚠️ $pythonCmd não disponível para instalar dependências" -ForegroundColor Yellow
+            }
+            
+            if ($retry -lt $maxRetries) {
+                Write-Host "   ⏳ Aguardando 2 segundos antes da próxima tentativa..." -ForegroundColor Gray
+                Start-Sleep -Seconds 2
+            }
+        }
+        
+        if ($dependenciesInstalled) {
+            break
+        }
+    }
+    
+    if (-NOT $dependenciesInstalled) {
+        Write-Host "   ❌ Não foi possível instalar as dependências Python automaticamente." -ForegroundColor Red
+        Write-Host "   💡 Instale manualmente com: pip install requests" -ForegroundColor Yellow
+        # Não vamos falhar a instalação completa por causa disso, apenas avisar
+    }
+
     # Passo 2: Instalar Millennium
     Write-Host ""
     Write-Host "📥 Passo 2/3: Instalando Millennium..." -ForegroundColor Yellow
     Write-Host "   Isso pode levar alguns minutos..." -ForegroundColor Gray
     
     # Instalar Millennium
-    $millenniumScript = Invoke-WebRequest -Uri "https://steambrew.app/install.ps1" -UseBasicParsing
-    Invoke-Expression $millenniumScript.Content
-    
-    Write-Host "✅ Millennium instalado com sucesso!" -ForegroundColor Green
+    try {
+        $millenniumScript = Invoke-WebRequest -Uri "https://steambrew.app/install.ps1" -UseBasicParsing
+        Invoke-Expression $millenniumScript.Content
+        Write-Host "✅ Millennium instalado com sucesso!" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Erro na instalação do Millennium: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "💡 Continuando com a instalação do plugin luafast..." -ForegroundColor Yellow
+    }
     
     # Aguardar instalação do Millennium
     Write-Host "   ⏳ Aguardando conclusão da instalação..." -ForegroundColor Gray
@@ -278,12 +337,12 @@ try {
     Write-Host ""
     Write-Host "📍 Componentes instalados:" -ForegroundColor Cyan
     Write-Host "   • Python 3.11.9 (para execução de scripts)" -ForegroundColor White
+    Write-Host "   • Biblioteca requests (para requisições HTTP)" -ForegroundColor White
     Write-Host "   • Millennium (framework de modificação Steam)" -ForegroundColor White
     Write-Host "   • Plugin luafast" -ForegroundColor White
     Write-Host ""
     Write-Host "📍 Arquivos instalados em:" -ForegroundColor Cyan
     Write-Host "   • Plugin: $targetDir" -ForegroundColor White
-    Write-Host "   • hid.dll: $correctHidDllPath" -ForegroundColor White
     Write-Host ""
     Write-Host "🌐 Para suporte e novidades:" -ForegroundColor Cyan
     Write-Host "   Grupo do Telegram: https://t.me/luafaststeamgames" -ForegroundColor White
@@ -303,11 +362,7 @@ try {
     } else {
         Write-Host "💡 Dica: Inicie o Steam para começar a usar o plugin!" -ForegroundColor Cyan
     }
-    
-    Write-Host ""
-    Write-Host "Pressione qualquer tecla para fechar..." -ForegroundColor Gray
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    
+
 } catch {
     Write-Host ""
     Write-Host "❌ ERRO na instalação: $($_.Exception.Message)" -ForegroundColor Red
@@ -318,7 +373,11 @@ try {
     Write-Host "   • Desative temporariamente o antivírus" -ForegroundColor White
     Write-Host "   • Tente instalar manualmente seguindo o README.md" -ForegroundColor White
     Write-Host ""
-    Write-Host "Pressione qualquer tecla para fechar..." -ForegroundColor Gray
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    exit 1
+    Write-Host "📋 Detalhes do erro:" -ForegroundColor Yellow
+    Write-Host "   $($_.Exception.StackTrace)" -ForegroundColor Gray
 }
+
+# FIM DO SCRIPT - Aguardar entrada do usuário antes de fechar
+Write-Host ""
+Write-Host "Pressione qualquer tecla para fechar..." -ForegroundColor Gray
+[Console]::ReadKey($true) | Out-Null
