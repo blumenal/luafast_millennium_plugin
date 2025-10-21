@@ -1,6 +1,5 @@
-🚀 luafast - Millennium Plugin
+###🚀 luafast - Millennium Plugin 0.1.2
 
-Desbloqueie uma nova dimensão de jogos na Steam! 
 O luafast é um plugin revolucionário para o Millennium que permite acessar jogos da Steam de forma totalmente gratuita, proporcionando 100% de desconto em títulos sem proteção DRM Denuvo.
 
 ✨ Características Principais
