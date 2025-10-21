@@ -796,7 +796,7 @@ function createFloatingRestartButton() {
             }
         } catch (error) {
             console.error('Erro ao reiniciar Steam:', error);
-            floatingButton.textContent = 'Erro!';
+            floatingButton.textContent = 'LUAFAST';
             floatingButton.style.background = '#8b2d2d';
             
             setTimeout(() => {
@@ -838,4 +838,145 @@ new MutationObserver(() => {
     subtree: false // Apenas observar filhos diretos do body
 });
 
+// Função para criar o botão Instalar DLC's - VERSÃO SIMPLIFICADA
+function createFloatingInstallDLCButton() {
+    if (document.getElementById('luafast-floating-install-dlc')) return;
+    
+    const floatingButton = document.createElement('button');
+    floatingButton.id = 'luafast-floating-install-dlc';
+    floatingButton.textContent = 'Instalar DLC\'s';
+    floatingButton.style.position = 'fixed';
+    floatingButton.style.bottom = '70px';
+    floatingButton.style.left = '20px';
+    floatingButton.style.zIndex = '10000';
+    floatingButton.style.background = '#1b2838';
+    floatingButton.style.color = '#ffffff';
+    floatingButton.style.border = '1px solid #ffa500';
+    floatingButton.style.borderRadius = '4px';
+    floatingButton.style.padding = '8px 16px';
+    floatingButton.style.cursor = 'pointer';
+    floatingButton.style.fontFamily = 'sans-serif';
+    floatingButton.style.fontSize = '14px';
+    floatingButton.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
+    floatingButton.style.transition = 'all 0.2s ease';
+    
+    floatingButton.addEventListener('mouseenter', () => {
+        floatingButton.style.background = '#ffa500';
+        floatingButton.style.color = '#1b2838';
+        floatingButton.style.transform = 'scale(1.05)';
+    });
+    
+    floatingButton.addEventListener('mouseleave', () => {
+        floatingButton.style.background = '#1b2838';
+        floatingButton.style.color = '#ffffff';
+        floatingButton.style.transform = 'scale(1)';
+    });
+
+    floatingButton.addEventListener('click', async () => {
+        const originalText = floatingButton.textContent;
+        floatingButton.style.background = '#cc8400';
+        floatingButton.style.cursor = 'wait';
+        floatingButton.textContent = 'Obtendo AppID...';
+        
+        try {
+            // Função simples para extrair AppID da URL
+            function getCurrentAppId() {
+                const urlMatch = window.location.href.match(/\/app\/(\d+)/);
+                return urlMatch ? parseInt(urlMatch[1], 10) : null;
+            }
+            
+            const currentAppId = getCurrentAppId();
+            
+            if (!currentAppId) {
+                throw new Error('Não foi possível detectar o AppID. Certifique-se de estar na página de um jogo na Steam.');
+            }
+            
+            floatingButton.textContent = `Iniciando instalação...`;
+            
+            // CHAMADA SIMPLIFICADA do backend
+            const result = await __call_server_method__('installDLC', {
+                appid: currentAppId
+            });
+            
+            if (result && result.success) {
+                floatingButton.textContent = 'Sucesso!';
+                floatingButton.style.background = '#2d5c2d';
+                
+                setTimeout(() => {
+                    alert(`Instalação de DLC's iniciada para AppID: ${currentAppId}\n\nUma janela de prompt será aberta.`);
+                }, 100);
+                
+                setTimeout(() => {
+                    floatingButton.textContent = originalText;
+                    floatingButton.style.background = '#1b2838';
+                    floatingButton.style.cursor = 'pointer';
+                }, 3000);
+            } else {
+                throw new Error(result?.error || 'Instalação de DLCs iniciada.\n\nUma janela de prompt será aberta.');
+            }
+        } catch (error) {
+            console.error('Erro ao instalar DLC\'s:', error);
+            floatingButton.textContent = 'LUAFAST';
+            floatingButton.style.background = '#8b2d2d';
+            
+            setTimeout(() => {
+                alert('Erro: ' + error.message);
+            }, 100);
+            
+            setTimeout(() => {
+                floatingButton.textContent = originalText;
+                floatingButton.style.background = '#1b2838';
+                floatingButton.style.cursor = 'pointer';
+            }, 3000);
+        }
+    });
+    
+    document.body.appendChild(floatingButton);
+}
+
+// Função para criar ambos os botões
+function createAllFloatingButtons() {
+    createFloatingRestartButton();
+    createFloatingInstallDLCButton();
+}
+
+// Aguardar o DOM estar pronto e o plugin ser inicializado
+function initializeFloatingButtons() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            // Pequeno delay para garantir que o plugin foi carregado
+            setTimeout(createAllFloatingButtons, 2000);
+        });
+    } else {
+        setTimeout(createAllFloatingButtons, 2000);
+    }
+}
+
+// Inicializar os botões
+initializeFloatingButtons();
+
+// Observador mais agressivo para garantir que os botões sejam criados
+new MutationObserver(() => {
+    if (!document.getElementById('luafast-floating-restart')) {
+        setTimeout(createFloatingRestartButton, 500);
+    }
+    if (!document.getElementById('luafast-floating-install-dlc')) {
+        setTimeout(createFloatingInstallDLCButton, 500);
+    }
+}).observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+// Também observar mudanças na URL para páginas de app
+new MutationObserver(() => {
+    if (window.location.href.includes('/app/')) {
+        if (!document.getElementById('luafast-floating-install-dlc')) {
+            setTimeout(createFloatingInstallDLCButton, 1000);
+        }
+    }
+}).observe(document.body, {
+    childList: true,
+    subtree: true
+});
 ExecutePluginModule();
