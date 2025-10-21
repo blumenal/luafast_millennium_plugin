@@ -7,6 +7,18 @@ from luafast import luafastManager
 from steam_utils import has_lua_for_app, list_lua_apps
 from config import VERSION
 from restart_steam import restart_steam
+from installdlc import install_dlc
+
+__all__ = [
+    'Logger',
+    'hasluaForApp', 
+    'addVialuafast',
+    'GetStatus',
+    'GetLocalLibrary',
+    'removeVialuafast',
+    'restartSteam',
+    'installDLC'
+]
 
 logger = PluginUtils.Logger()
 
@@ -144,3 +156,29 @@ def restartSteam() -> str:
     except Exception as e:
         logger.error(f'restartSteam failed: {e}')
         return error_response(str(e))
+        
+def installDLC(appid: int = None) -> str:
+    try:
+        # Log do AppID recebido
+        if appid:
+            logger.log(f"luafast: Instalando DLC's para AppID {appid}")
+        else:
+            logger.log("luafast: Instalando DLC's (AppID não especificado)")
+        
+        # Chama a função de instalação passando o AppID
+        success = install_dlc(appid)
+        
+        if success:
+            message = f"Instalação de DLC's iniciada"
+            if appid:
+                message += f" para AppID {appid}"
+            return success_response(message=message)
+        else:
+            error_msg = "Falha ao iniciar a instalação de DLC's"
+            if appid:
+                error_msg += f" para AppID {appid}"
+            return error_response(error_msg)
+    except Exception as e:
+        logger.error(f'installDLC failed: {e}')
+        return error_response(str(e))
+

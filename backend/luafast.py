@@ -8,6 +8,63 @@ from steam_utils import get_stplug_in_path
 
 logger = PluginUtils.Logger()
 
+def get_depotcache_path():
+    """Retorna o caminho correto para a pasta depotcache"""
+    stplug_path = get_stplug_in_path()
+    steam_path = os.path.dirname(os.path.dirname(stplug_path))
+    return os.path.join(steam_path, 'depotcache')
+
+def get_log_file_path():
+    """Retorna o caminho do arquivo de log"""
+    stplug_path = get_stplug_in_path()
+    return os.path.join(stplug_path, 'log.json')
+
+def read_log_file():
+    """Lê e retorna o conteúdo do arquivo de log"""
+    log_path = get_log_file_path()
+    if not os.path.exists(log_path):
+        return {}
+    
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"luafast: Erro ao ler log.json: {e}")
+        return {}
+
+def write_log_file(data):
+    """Escreve dados no arquivo de log"""
+    try:
+        log_path = get_log_file_path()
+        with open(log_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"luafast: Erro ao escrever log.json: {e}")
+
+def update_log_file(appid: int, manifest_files: List[str]):
+    """Atualiza o arquivo de log com os arquivos de um appid"""
+    log_data = read_log_file()
+    
+    # Converte appid para string para ser chave do JSON
+    appid_str = str(appid)
+    
+    if appid_str not in log_data:
+        log_data[appid_str] = {}
+    
+    # Atualiza a lista de manifest files
+    log_data[appid_str]['manifests'] = manifest_files
+    
+    write_log_file(log_data)
+
+def remove_from_log_file(appid: int):
+    """Remove um appid do arquivo de log"""
+    log_data = read_log_file()
+    appid_str = str(appid)
+    
+    if appid_str in log_data:
+        del log_data[appid_str]
+        write_log_file(log_data)
+
 class luafastManager:
     def __init__(self, backend_path: str, api_manager):
         self.backend_path = backend_path
@@ -74,11 +131,14 @@ class luafastManager:
                 'currentRepository': repository
             })
 
-            # Prepara diretórios
+            # Prepara diretórios CORRETOS
             stplug_path = get_stplug_in_path()
-            depotcache_path = os.path.join(os.path.dirname(stplug_path), 'depotcache')
+            depotcache_path = get_depotcache_path()
             os.makedirs(stplug_path, exist_ok=True)
             os.makedirs(depotcache_path, exist_ok=True)
+
+            # Lista para armazenar os nomes dos arquivos .manifest baixados
+            manifest_files = []
 
             # Download de cada arquivo
             for idx, item in enumerate(arquivos):
@@ -92,6 +152,8 @@ class luafastManager:
                     destino = stplug_path
                 else:  # .manifest
                     destino = depotcache_path
+                    # Adiciona à lista de manifest files
+                    manifest_files.append(os.path.basename(path))
 
                 file_path = os.path.join(destino, os.path.basename(path))
                 with open(file_path, 'wb') as f:
@@ -102,6 +164,10 @@ class luafastManager:
                     'downloadedFiles': idx + 1,
                     'status': 'downloading'
                 })
+
+            # Atualiza o arquivo de log com os manifests baixados
+            if manifest_files:
+                update_log_file(appid, manifest_files)
 
             # Concluído com sucesso
             self._set_download_state(appid, {
@@ -192,7 +258,6 @@ class luafastManager:
 
         return {'success': True}
 
-    # O restante do código permanece igual...
     def remove_via_lua(self, appid: int) -> Dict[str, Any]:
         try:
             appid = int(appid)
@@ -201,6 +266,7 @@ class luafastManager:
 
         try:
             stplug_path = get_stplug_in_path()
+            depotcache_path = get_depotcache_path()
             removed_files = []
 
             # Remove arquivos .lua
@@ -217,7 +283,23 @@ class luafastManager:
                 removed_files.append(f'{appid}.lua.disabled')
                 logger.log(f"luafast: Removed {disabled_file}")
 
-            # Remove arquivos .manifest
+            # Remove arquivos .manifest baseados no log
+            log_data = read_log_file()
+            appid_str = str(appid)
+            
+            if appid_str in log_data and 'manifests' in log_data[appid_str]:
+                for manifest_file in log_data[appid_str]['manifests']:
+                    manifest_path = os.path.join(depotcache_path, manifest_file)
+                    if os.path.exists(manifest_path):
+                        os.remove(manifest_path)
+                        removed_files.append(manifest_file)
+                        logger.log(f"luafast: Removed manifest {manifest_path}")
+                
+                # Remove a entrada do appid do log
+                remove_from_log_file(appid)
+                logger.log(f"luafast: Removed appid {appid} from log file")
+
+            # Remove arquivos .manifest antigos (para compatibilidade)
             for filename in os.listdir(stplug_path):
                 if filename.startswith(f'{appid}_') and filename.endswith('.manifest'):
                     manifest_file = os.path.join(stplug_path, filename)
@@ -234,3 +316,14 @@ class luafastManager:
         except Exception as e:
             logger.error(f"luafast: Error removing files for app {appid}: {e}")
             return {'success': False, 'error': str(e)}
+
+    def test_install_dlc(appid: int) -> str:
+        """
+        Função de teste para verificar se a comunicação está funcionando
+        """
+        try:
+            logger.log(f"luafast: Teste de DLC recebido - AppID: {appid}")
+            return json_response({'success': True, 'message': f'AppID {appid} recebido com sucesso'})
+        except Exception as e:
+            logger.error(f'Teste DLC failed: {e}')
+            return error_response(str(e))
