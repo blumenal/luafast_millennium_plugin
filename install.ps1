@@ -26,6 +26,99 @@ if (-NOT $isAdmin) {
 
 Write-Host "✅ PowerShell executando como Administrador" -ForegroundColor Green
 
+# Função para localizar a instalação da Steam
+function Find-SteamPath {
+    Write-Host "🔍 Procurando instalação da Steam..." -ForegroundColor Yellow
+    
+    # Locais comuns de instalação da Steam
+    $commonPaths = @(
+        "C:\Program Files (x86)\Steam",
+        "C:\Program Files\Steam", 
+        "$env:PROGRAMFILES(X86)\Steam",
+        "$env:PROGRAMFILES\Steam",
+        "$env:LOCALAPPDATA\Programs\Steam",
+        "D:\Steam",
+        "D:\Program Files (x86)\Steam",
+        "E:\Steam",
+        "E:\Program Files (x86)\Steam"
+    )
+    
+    # Verificar no registro do Windows
+    try {
+        $regPath = Get-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" -Name "InstallPath" -ErrorAction SilentlyContinue
+        if ($regPath -and $regPath.InstallPath) {
+            $commonPaths = @($regPath.InstallPath) + $commonPaths
+            Write-Host "   📝 Steam encontrado no registro: $($regPath.InstallPath)" -ForegroundColor Gray
+        }
+    } catch { }
+    
+    try {
+        $regPath = Get-ItemProperty -Path "HKLM:\SOFTWARE\Valve\Steam" -Name "InstallPath" -ErrorAction SilentlyContinue
+        if ($regPath -and $regPath.InstallPath) {
+            $commonPaths = @($regPath.InstallPath) + $commonPaths
+            Write-Host "   📝 Steam encontrado no registro: $($regPath.InstallPath)" -ForegroundColor Gray
+        }
+    } catch { }
+    
+    # Verificar cada caminho
+    foreach ($path in $commonPaths) {
+        if (Test-Path $path) {
+            # Verificar se é realmente uma instalação do Steam (procurar por steam.exe)
+            $steamExe = Join-Path $path "steam.exe"
+            if (Test-Path $steamExe) {
+                Write-Host "   ✅ Steam encontrado em: $path" -ForegroundColor Green
+                return $path
+            }
+        }
+    }
+    
+    return $null
+}
+
+# Função para solicitar caminho da Steam ao usuário
+function Request-SteamPath {
+    Write-Host ""
+    Write-Host "❌ Steam não foi encontrado automaticamente." -ForegroundColor Red
+    Write-Host "💡 Por favor, informe o caminho de instalação da Steam:" -ForegroundColor Yellow
+    Write-Host "   Exemplo: C:\Program Files (x86)\Steam" -ForegroundColor Gray
+    Write-Host ""
+    
+    $maxAttempts = 3
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $steamPath = Read-Host "📁 Caminho da instalação da Steam"
+        
+        # Limpar e validar o caminho
+        $steamPath = $steamPath.Trim('"', ' ''')
+        
+        if (-not $steamPath) {
+            Write-Host "   ⚠️ Caminho vazio. Tente novamente." -ForegroundColor Yellow
+            continue
+        }
+        
+        # Verificar se o caminho existe
+        if (-not (Test-Path $steamPath)) {
+            Write-Host "   ❌ O caminho '$steamPath' não existe. Tente novamente." -ForegroundColor Red
+            continue
+        }
+        
+        # Verificar se é uma instalação válida do Steam
+        $steamExe = Join-Path $steamPath "steam.exe"
+        if (-not (Test-Path $steamExe)) {
+            Write-Host "   ⚠️ O caminho não contém steam.exe. Tem certeza que é a instalação da Steam?" -ForegroundColor Yellow
+            $confirm = Read-Host "   Digite 'S' para confirmar ou qualquer tecla para tentar outro caminho"
+            if ($confirm -ne 'S' -and $confirm -ne 's') {
+                continue
+            }
+        }
+        
+        Write-Host "   ✅ Caminho válido: $steamPath" -ForegroundColor Green
+        return $steamPath
+    }
+    
+    Write-Host "   ❌ Número máximo de tentativas excedido." -ForegroundColor Red
+    return $null
+}
+
 try {
     # Passo 1: Verificar e instalar Python
     Write-Host ""
@@ -177,23 +270,28 @@ try {
     Write-Host "   ⏳ Aguardando conclusão da instalação..." -ForegroundColor Gray
     Start-Sleep -Seconds 5
     
-    # Passo 3: Instalar plugin luafast nos locais CORRETOS
+    # Passo 3: Localizar Steam e instalar plugin luafast
     Write-Host ""
-    Write-Host "🎮 Passo 3/3: Instalando plugin luafast..." -ForegroundColor Yellow
+    Write-Host "🎮 Passo 3/3: Localizando Steam e instalando plugin luafast..." -ForegroundColor Yellow
+    
+    # Localizar instalação da Steam
+    $steamPath = Find-SteamPath
+    
+    if (-not $steamPath) {
+        $steamPath = Request-SteamPath
+    }
+    
+    if (-not $steamPath) {
+        Write-Host "❌ ERRO: Não foi possível encontrar a instalação da Steam." -ForegroundColor Red
+        Write-Host "💡 Instale o Steam ou execute o script novamente informando o caminho correto." -ForegroundColor Yellow
+        throw "Steam não encontrado"
+    }
     
     # CAMINHOS CORRETOS PARA STEAM
-    $steamPath = "C:\Program Files (x86)\Steam"
     $correctPluginPath = "$steamPath\plugins"
     $correctHidDllPath = "$steamPath\hid.dll"
     
-    # Verificar se o Steam está instalado no local padrão
-    if (-not (Test-Path $steamPath)) {
-        Write-Host "❌ ERRO: Steam não encontrado em $steamPath" -ForegroundColor Red
-        Write-Host "💡 Instale o Steam no local padrão ou ajuste o script." -ForegroundColor Yellow
-        throw "Steam não encontrado no local padrão"
-    }
-    
-    Write-Host "   📁 Steam encontrado em: $steamPath" -ForegroundColor Green
+    Write-Host "   📁 Usando Steam em: $steamPath" -ForegroundColor Green
     
     # Criar diretório de plugins se não existir
     if (-not (Test-Path $correctPluginPath)) {
@@ -343,6 +441,7 @@ try {
     Write-Host ""
     Write-Host "📍 Arquivos instalados em:" -ForegroundColor Cyan
     Write-Host "   • Plugin: $targetDir" -ForegroundColor White
+    Write-Host "   • Steam: $steamPath" -ForegroundColor White
     Write-Host ""
     Write-Host "🌐 Para suporte e novidades:" -ForegroundColor Cyan
     Write-Host "   Grupo do Telegram: https://t.me/luafaststeamgames" -ForegroundColor White
