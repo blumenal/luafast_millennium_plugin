@@ -2,7 +2,7 @@
 # Repositório: https://github.com/blumenal/luafast_millennium_plugin
 
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "🚀 Instalador Automático luafast + Millennium" -ForegroundColor Cyan
+Write-Host "🚀 Instalador Automático luafast + Millennium + Python" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -21,9 +21,91 @@ if (-NOT $isAdmin) {
 Write-Host "✅ PowerShell executando como Administrador" -ForegroundColor Green
 
 try {
-    # Passo 1: Instalar Millennium
+    # Passo 1: Verificar e instalar Python
     Write-Host ""
-    Write-Host "📥 Passo 1/2: Instalando Millennium..." -ForegroundColor Yellow
+    Write-Host "🐍 Passo 1/3: Verificando e instalando Python..." -ForegroundColor Yellow
+    
+    # Verificar se Python já está instalado
+    $pythonInstalled = $false
+    $pythonVersions = @("python", "python3", "py")
+    
+    foreach ($pythonCmd in $pythonVersions) {
+        try {
+            $null = Get-Command $pythonCmd -ErrorAction Stop
+            $pythonVersion = & $pythonCmd --version 2>&1
+            Write-Host "   ✅ Python encontrado: $pythonVersion" -ForegroundColor Green
+            $pythonInstalled = $true
+            break
+        } catch {
+            # Continua para próxima tentativa
+        }
+    }
+    
+    # Se Python não está instalado, instalar
+    if (-NOT $pythonInstalled) {
+        Write-Host "   📥 Python não encontrado. Instalando..." -ForegroundColor Gray
+        
+        # URL do instalador do Python
+        $pythonInstallerUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
+        $pythonInstallerPath = "$env:TEMP\python-installer.exe"
+        
+        # Download do Python
+        Write-Host "   📥 Baixando Python 3.11.9..." -ForegroundColor Gray
+        try {
+            Invoke-WebRequest -Uri $pythonInstallerUrl -OutFile $pythonInstallerPath
+            Write-Host "   ✅ Download do Python concluído" -ForegroundColor Green
+        } catch {
+            Write-Host "   ❌ Erro no download do Python: $($_.Exception.Message)" -ForegroundColor Red
+            throw
+        }
+        
+        # Instalar Python silenciosamente
+        Write-Host "   ⚙️ Instalando Python (isso pode levar alguns minutos)..." -ForegroundColor Gray
+        $installArgs = @(
+            "/quiet",
+            "InstallAllUsers=1",
+            "PrependPath=1",
+            "Include_test=0",
+            "SimpleInstall=1"
+        )
+        
+        $process = Start-Process -FilePath $pythonInstallerPath -ArgumentList $installArgs -Wait -PassThru
+        
+        if ($process.ExitCode -eq 0) {
+            Write-Host "   ✅ Python instalado com sucesso!" -ForegroundColor Green
+            
+            # Atualizar PATH para reconhecer Python imediatamente
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        } else {
+            Write-Host "   ⚠️ A instalação do Python pode não ter concluído completamente. Código de saída: $($process.ExitCode)" -ForegroundColor Yellow
+        }
+        
+        # Limpar instalador
+        Remove-Item $pythonInstallerPath -Force -ErrorAction SilentlyContinue
+        
+        # Verificar novamente se Python está disponível
+        Start-Sleep -Seconds 2
+        $pythonInstalled = $false
+        foreach ($pythonCmd in $pythonVersions) {
+            try {
+                $null = Get-Command $pythonCmd -ErrorAction Stop
+                $pythonVersion = & $pythonCmd --version 2>&1
+                Write-Host "   ✅ Python instalado: $pythonVersion" -ForegroundColor Green
+                $pythonInstalled = $true
+                break
+            } catch {
+                # Continua para próxima tentativa
+            }
+        }
+        
+        if (-NOT $pythonInstalled) {
+            Write-Host "   ⚠️ Python pode exigir reinicialização do PowerShell para ser reconhecido." -ForegroundColor Yellow
+        }
+    }
+
+    # Passo 2: Instalar Millennium
+    Write-Host ""
+    Write-Host "📥 Passo 2/3: Instalando Millennium..." -ForegroundColor Yellow
     Write-Host "   Isso pode levar alguns minutos..." -ForegroundColor Gray
     
     # Instalar Millennium
@@ -36,9 +118,9 @@ try {
     Write-Host "   ⏳ Aguardando conclusão da instalação..." -ForegroundColor Gray
     Start-Sleep -Seconds 5
     
-    # Passo 2: Instalar plugin luafast nos locais CORRETOS
+    # Passo 3: Instalar plugin luafast nos locais CORRETOS
     Write-Host ""
-    Write-Host "🎮 Passo 2/2: Instalando plugin luafast..." -ForegroundColor Yellow
+    Write-Host "🎮 Passo 3/3: Instalando plugin luafast..." -ForegroundColor Yellow
     
     # CAMINHOS CORRETOS PARA STEAM
     $steamPath = "C:\Program Files (x86)\Steam"
@@ -193,6 +275,11 @@ try {
     Write-Host "   2. Inicie o Steam normalmente" -ForegroundColor White
     Write-Host "   3. Acesse a página de qualquer jogo na Steam Store" -ForegroundColor White
     Write-Host "   4. Clique no botão 'Grátis - LuaFast' para adicionar jogos" -ForegroundColor White
+    Write-Host ""
+    Write-Host "📍 Componentes instalados:" -ForegroundColor Cyan
+    Write-Host "   • Python 3.11.9 (para execução de scripts)" -ForegroundColor White
+    Write-Host "   • Millennium (framework de modificação Steam)" -ForegroundColor White
+    Write-Host "   • Plugin luafast" -ForegroundColor White
     Write-Host ""
     Write-Host "📍 Arquivos instalados em:" -ForegroundColor Cyan
     Write-Host "   • Plugin: $targetDir" -ForegroundColor White
