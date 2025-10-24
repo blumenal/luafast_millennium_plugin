@@ -8,7 +8,7 @@ class APIManager:
         self.backend_path = backend_path
         self.repositories = [
             'dvahana2424-web/sojogamesdatabase1',
-            'SPIN0ZAi/SB_manifest_DB'
+            'SPIN0ZAi/SB_manifest_DB',
         ]
 
     def get_download_endpoints(self) -> list:
