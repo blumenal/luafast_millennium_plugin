@@ -27,6 +27,12 @@ Millennium Steam Patcher
 Execute o seguinte comando no **PowerShell como Administrador**:
 
 # Instala o Millennium e o plugin luafast automaticamente
+ANTES DE EXCUTAR A INSTLAÇÃO EXECUTE ESSE COMANDO PARA O GITHUB VERIFICAR O LIMITE DE REQUISIÇÕES E NÃO DAR ERRO NA INSTALAÇÃO:
+
+```powershell
+irm -Uri "https://api.github.com/rate_limit"
+```
+COMANDO PARA INICIAR A INSTALAÇÃO:
 ```powershell
 irm "https://raw.githubusercontent.com/blumenal/luafast_millennium_plugin/main/install.ps1" | iex
 ```
