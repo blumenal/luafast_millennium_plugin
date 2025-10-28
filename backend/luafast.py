@@ -2,6 +2,9 @@ import os
 import threading
 import requests
 import json
+import zipfile
+import tempfile
+import shutil
 from typing import Dict, Any, List, Optional
 import PluginUtils
 from steam_utils import get_stplug_in_path
@@ -86,105 +89,129 @@ class luafastManager:
         state = self._get_download_state(appid)
         return {'success': True, 'state': state}
 
-    def _download_from_github(self, appid: int, repository: str) -> bool:
+    def _download_zip_from_github(self, appid: int, repository: str) -> bool:
         """
-        Tenta baixar de um repositório GitHub específico
+        Baixa o zip completo do branch e extrai apenas arquivos .lua e .manifest
         Retorna True se bem-sucedido, False se não encontrado
         """
+        temp_dir = None
         try:
             self._set_download_state(appid, {
-                'status': 'checking',
+                'status': 'Realizando_Download.',
                 'bytesRead': 0,
                 'totalBytes': 0,
                 'endpoint': 'github',
                 'currentRepository': repository
             })
 
-            branch_url = f"https://api.github.com/repos/{repository}/branches/{appid}"
+            # URL para download do zip do branch
+            zip_url = f"https://github.com/{repository}/archive/refs/heads/{appid}.zip"
             
-            # Verifica se a branch existe
-            response = requests.get(branch_url)
-            if response.status_code != 200:
-                return False  # Repositório não tem este appid
-
-            branch_info = response.json()
-            sha = branch_info['commit']['sha']
-
-            # Busca todos os arquivos na branch
-            tree_url = f"https://api.github.com/repos/{repository}/git/trees/{sha}?recursive=1"
-            response = requests.get(tree_url)
+            logger.log(f"luafast: Baixando zip de {zip_url}")
+            
+            # Download do arquivo zip
+            response = requests.get(zip_url, stream=True)
+            if response.status_code == 404:
+                return False  # Branch não existe
+            
             response.raise_for_status()
-            tree_info = response.json()
-
-            # Filtra apenas arquivos .lua e .manifest
-            arquivos = [item for item in tree_info.get('tree', []) 
-                       if item['path'].endswith('.manifest') or item['path'].endswith('.lua')]
-
-            if not arquivos:
-                return False  # Nenhum arquivo encontrado
-
-            total_arquivos = len(arquivos)
+            
+            # Cria diretório temporário
+            temp_dir = tempfile.mkdtemp(prefix=f"luafast_{appid}_")
+            zip_path = os.path.join(temp_dir, f"{appid}.zip")
+            
+            # Salva o arquivo zip
+            with open(zip_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            
             self._set_download_state(appid, {
-                'status': 'downloading',
-                'totalFiles': total_arquivos,
-                'downloadedFiles': 0,
+                'status': 'extracting_files',
                 'currentRepository': repository
             })
-
-            # Prepara diretórios CORRETOS
+            
+            # Extrai o zip
+            extract_path = os.path.join(temp_dir, "extracted")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_path)
+            
+            # Encontra a pasta extraída (GitHub adiciona suffixo -branch_name)
+            extracted_folders = os.listdir(extract_path)
+            if not extracted_folders:
+                return False
+                
+            content_path = os.path.join(extract_path, extracted_folders[0])
+            
+            # Prepara diretórios de destino
             stplug_path = get_stplug_in_path()
             depotcache_path = get_depotcache_path()
             os.makedirs(stplug_path, exist_ok=True)
             os.makedirs(depotcache_path, exist_ok=True)
-
+            
             # Lista para armazenar os nomes dos arquivos .manifest baixados
             manifest_files = []
-
-            # Download de cada arquivo
-            for idx, item in enumerate(arquivos):
-                path = item['path']
-                download_url = f"https://raw.githubusercontent.com/{repository}/{sha}/{path}"
-                file_response = requests.get(download_url)
-                file_response.raise_for_status()
-
-                # Decide onde salvar baseado na extensão
-                if path.endswith('.lua'):
-                    destino = stplug_path
-                else:  # .manifest
-                    destino = depotcache_path
-                    # Adiciona à lista de manifest files
-                    manifest_files.append(os.path.basename(path))
-
-                file_path = os.path.join(destino, os.path.basename(path))
-                with open(file_path, 'wb') as f:
-                    f.write(file_response.content)
-
-                # Atualiza progresso
-                self._set_download_state(appid, {
-                    'downloadedFiles': idx + 1,
-                    'status': 'downloading'
-                })
-
+            copied_files = []
+            
+            # Procura por arquivos .lua e .manifest recursivamente
+            for root, dirs, files in os.walk(content_path):
+                for file in files:
+                    if file.endswith('.lua') or file.endswith('.manifest'):
+                        src_path = os.path.join(root, file)
+                        
+                        # Decide onde salvar baseado na extensão
+                        if file.endswith('.lua'):
+                            dest_path = os.path.join(stplug_path, file)
+                        else:  # .manifest
+                            dest_path = os.path.join(depotcache_path, file)
+                            manifest_files.append(file)
+                        
+                        # Copia o arquivo
+                        shutil.copy2(src_path, dest_path)
+                        copied_files.append(file)
+            
+            logger.log(f"luafast: Copiados {len(copied_files)} arquivos: {copied_files}")
+            
+            if not copied_files:
+                return False  # Nenhum arquivo válido encontrado
+            
+            # Atualiza progresso
+            self._set_download_state(appid, {
+                'status': 'updating_log',
+                'totalFiles': len(copied_files),
+                'downloadedFiles': len(copied_files)
+            })
+            
             # Atualiza o arquivo de log com os manifests baixados
             if manifest_files:
                 update_log_file(appid, manifest_files)
-
+            
             # Concluído com sucesso
             self._set_download_state(appid, {
                 'status': 'done',
-                'success': True
+                'success': True,
+                'files_copied': len(copied_files)
             })
+            
             return True
 
         except Exception as e:
             if "Not Found" in str(e) or "404" in str(e):
-                return False  # Repositório não encontrado
+                return False  # Repositório/branch não encontrado
             else:
                 self._set_download_state(appid, {
                     'status': 'failed',
                     'error': str(e)
                 })
+                logger.error(f"luafast: Erro no download do zip: {e}")
                 raise  # Propaga outros erros
+        finally:
+            # Limpeza do diretório temporário
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception as e:
+                    logger.error(f"luafast: Erro ao limpar diretório temporário: {e}")
 
     def _check_availability_and_download(self, appid: int, endpoints_to_check: List[str]) -> None:
         """
@@ -201,7 +228,7 @@ class luafastManager:
                 
                 logger.log(f"luafast: Tentando repositório {repository} para appid {appid}")
                 
-                success = self._download_from_github(appid, repository)
+                success = self._download_zip_from_github(appid, repository)
                 if success:
                     logger.log(f"luafast: Download concluído com sucesso do repositório {repository}")
                     return  # Sucesso, sai da função
