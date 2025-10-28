@@ -1,4 +1,4 @@
-### luafast - Millennium Plugin 0.1.2
+### luafast - Millennium Plugin 0.1.3
 
 O luafast é um plugin revolucionário para o Millennium que permite acessar jogos da Steam de forma totalmente gratuita, proporcionando 100% de desconto em títulos sem proteção DRM Denuvo.
 
